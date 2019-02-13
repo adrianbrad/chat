@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/stretchr/objx"
+
 	"github.com/stretchr/gomniauth"
 	"github.com/stretchr/gomniauth/providers/google"
 
@@ -33,7 +35,17 @@ func (t *templateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			)
 		},
 	)
-	_ = t.template.Execute(w, r)
+
+	data := map[string]interface{}{
+		"Host": r.Host,
+	}
+
+	authCookie, err := r.Cookie("auth")
+	if err == nil {
+		data["UserData"] = objx.MustFromBase64(authCookie.Value)
+	}
+
+	_ = t.template.Execute(w, data)
 }
 
 func main() {
@@ -49,6 +61,7 @@ func main() {
 
 	http.Handle("/assets/", http.StripPrefix("/assets", http.FileServer(http.Dir("/home/brad/workspace/go/src/github.com/adrianbrad/chat/assets"))))
 
+	// http.Handle("/chat", MustAuth(&templateHandler{filename: "chat.html"}))
 	http.Handle("/chat", MustAuth(&templateHandler{filename: "chat.html"}))
 	http.Handle("/login", &templateHandler{filename: "login.html"})
 	http.HandleFunc("/auth/", loginHandler)

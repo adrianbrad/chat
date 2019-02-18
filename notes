@@ -1,0 +1,13 @@
+user {
+    ID
+    nickname
+    When
+    Role
+    Custom Data
+}
+
+add /createUser
+add Rooms
+
+getUsers
+getUserRoles

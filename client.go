@@ -1,8 +1,6 @@
 package main
 
 import (
-	"time"
-
 	"github.com/gorilla/websocket"
 )
 
@@ -28,12 +26,12 @@ func (c *client) read() {
 		if err != nil {
 			return
 		}
-		msg.When = time.Now()
+		// msg.When = time.Now()
 		msg.Name = c.userData["name"].(string)
-		avatarURL, avatarIsPresent := c.userData["avatar_url"]
-		if avatarIsPresent {
-			msg.AvatarURL = avatarURL.(string)
-		}
+		// avatarURL, avatarIsPresent := c.userData["avatar_url"]
+		// if avatarIsPresent {
+		// 	msg.AvatarURL = avatarURL.(string)
+		// }
 		c.room.forward <- msg
 	}
 }

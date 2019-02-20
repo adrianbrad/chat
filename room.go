@@ -3,11 +3,11 @@ package main
 import (
 	"log"
 	"net/http"
-
-	"github.com/stretchr/objx"
+	"time"
 
 	"github.com/adrianbrad/chat/trace"
 	"github.com/gorilla/websocket"
+	cache "github.com/patrickmn/go-cache"
 )
 
 type room struct {
@@ -24,6 +24,8 @@ type room struct {
 	clients map[*client]bool
 	//tracer will receive trace information of activity in the room
 	tracer trace.Tracer
+	//auth will allow connections to the room
+	auth *authenticator
 }
 
 func newRoom() *room {
@@ -32,6 +34,7 @@ func newRoom() *room {
 		join:    make(chan *client),
 		leave:   make(chan *client),
 		clients: make(map[*client]bool),
+		auth:    &authenticator{cache.New(10*time.Second, 10*time.Second)},
 	}
 }
 
@@ -70,23 +73,46 @@ var upgrader = &websocket.Upgrader{
 
 //ServeHTTP is used for upgrading a HTTP connection to websocket, storing the connection,create the client and pass it to the join channel for the current room
 func (r *room) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	socket, err := upgrader.Upgrade(w, req, nil)
+	switch req.Method {
+	case http.MethodGet:
+		r.handleWS(w, req)
+	case http.MethodPost:
+		r.auth.authenticate(w, req)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+}
+
+func (r *room) handleWS(w http.ResponseWriter, req *http.Request) {
+	subprotocols := websocket.Subprotocols(req)
+	if len(subprotocols) != 1 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	token := subprotocols[0]
+	userID, ok := r.auth.tokens.Get(token)
+
+	if !ok {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+	r.auth.tokens.Delete(token)
+
+	socket, err := upgrader.Upgrade(w, req, http.Header{"Sec-WebSocket-Protocol": []string{token}})
 	if err != nil {
 		log.Fatal("ServeHTTP:", err)
 		return
 	}
 
-	authCookie, err := req.Cookie("auth")
-	if err != nil {
-		log.Fatal("Failed to get auth cookie", err)
-		return
-	}
-
 	client := &client{
-		socket:   socket,
-		send:     make(chan *message, messageBufferSize),
-		room:     r,
-		userData: objx.MustFromBase64(authCookie.Value),
+		socket: socket,
+		send:   make(chan *message, messageBufferSize),
+		room:   r,
+		userData: map[string]interface{}{
+			"name": users[userID.(string)].Name,
+		},
 	}
 
 	r.join <- client

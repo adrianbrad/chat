@@ -16,13 +16,46 @@
             <input type="submit" value="Send" />
             or <a href="/logout">sign out</a>
         </form>
+
+        <form id="userInfo">
+            <textarea>{"id":12, "name": "someone"}</textarea>
+            <input type="submit" value="Request Token" />
+        </form>
+
+        <div id="tokenField">
+            token: <input type="text" name="token" value="lol" readonly>
+            connection url: <input type="text" name="connURL" value="://{{.Host}}/room" readonly>
+        </div>
+
+        <button id="connect">Connect</button>
+
         <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js">
         </script>
             <script>
                 $(function(){
                     var socket = null;
                     var msgBox = $("#chatbox textarea");
+                    var userInfoJson = $("#userInfo textarea");
                     var messages = $("#messages");
+                    var token = $("#tokenField > input:first")
+                    var connAddr = $("#tokenField > input:last")
+                    $('#userInfo').submit(function() {
+                        if (!userInfoJson.val()) return false;
+                        $.ajax({
+                            type:"POST",
+                            url: "http" + connAddr.val(),
+                            data: userInfoJson.val(),
+                            success: function(res, status, xhr) {
+                                console.log(xhr.getResponseHeader("Authorization"))
+                                token.val(xhr.getResponseHeader("Authorization"))
+                            },
+                            error: function(xhr, ajaxOptions, thrownErrors) {
+                                console.log("error", xhr.status)
+                                console.log("error", thrownErrors)
+                            }
+                        })
+                        return false
+                    })
                     $("#chatbox").submit(function(){
                         if (!msgBox.val()) return false;
                         if (!socket) {
@@ -33,29 +66,32 @@
                     msgBox.val("");
                     return false;
                     });
-                    if (!window["WebSocket"]) {
-                        alert("Error: Your browser does not support web sockets.")
-                    } else {
-                        socket = new WebSocket("ws://{{.Host}}/room");
-                        socket.onclose = function() {
-                            alert("Connection has been closed.");
-                        }
-                        socket.onmessage = function(e) {
-                            var msg = JSON.parse(e.data);
 
-                            messages.append(
-                                $("<li>").append(
-                                    $("<img>").css({
-                                        width: 50,
-                                        verticalAlign: "middle"
-                                    }).attr("src", msg.AvatarURL),
-                                    $("<strong>").text(msg.When + " / "),
-                                    $("<strong>").text(msg.Name + ": "),
-                                    $("<span>").text(msg.Message)
+                    $("#connect").click(function() {
+                        if (!window["WebSocket"]) {
+                            alert("Error: Your browser does not support web sockets.")
+                        } else {
+                            socket = new WebSocket("ws" + connAddr.val(), [token.val()]);
+                            socket.onclose = function() {
+                                alert("Connection has been closed.");
+                            }
+                            socket.onmessage = function(e) {
+                                var msg = JSON.parse(e.data);
+
+                                messages.append(
+                                    $("<li>").append(
+                                        // $("<img>").css({
+                                        //     width: 50,
+                                        //     verticalAlign: "middle"
+                                        // }).attr("src", msg.AvatarURL),
+                                        // $("<strong>").text(msg.When + " / "),
+                                        $("<strong>").text(msg.Name + ": "),
+                                        $("<span>").text(msg.Message)
+                                    )
                                 )
-                            )
+                            }
                         }
-                    }
+                    })
                 });
             </script>
     </body>

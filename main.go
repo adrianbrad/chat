@@ -12,12 +12,6 @@ import (
 	"github.com/adrianbrad/chat/room"
 )
 
-var users = map[string]*auth.User{
-	"1": &auth.User{Name: "brad", Role: true},
-	"2": &auth.User{Name: "john", Role: false},
-	"3": &auth.User{Name: "eusebiu", Role: true},
-}
-
 type templateHandler struct {
 	once     sync.Once
 	filename string
@@ -58,7 +52,7 @@ func main() {
 
 	r := room.New()
 
-	http.Handle("/room", auth.TokenAuth(10, r))
+	http.Handle("/room/1", auth.TokenAuth(10, r))
 
 	go r.Run() //get the room going in another thread
 	//the chatting operation occur in the background

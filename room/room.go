@@ -8,6 +8,7 @@ import (
 
 	"github.com/adrianbrad/chat/message"
 	"github.com/adrianbrad/chat/trace"
+	"github.com/adrianbrad/chat/users"
 	"github.com/gorilla/websocket"
 )
 
@@ -82,11 +83,17 @@ var upgrader = &websocket.Upgrader{
 
 //ServeHTTP is used for upgrading a HTTP connection to websocket, storing the connection,create the client and pass it to the join channel for the current room
 func (r *room) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-
 	//here we have to ensure that the token is in a valid form in the subprotocols header
 	socket, err := upgrader.Upgrade(w, req, http.Header{"Sec-WebSocket-Protocol": websocket.Subprotocols(req)})
 	if err != nil {
 		log.Fatal("ServeHTTP:", err)
+		return
+	}
+
+	//User-Id header was passed before by the auth or client
+	userID := req.Header.Get("User-Id")
+	if userID == "" {
+		log.Fatal("Room.ServeHTTP:", "No user ID found in the request header")
 		return
 	}
 
@@ -95,13 +102,10 @@ func (r *room) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		send:   make(chan *message.Message, messageBufferSize),
 		room:   r,
 		userData: map[string]interface{}{
-			"name":            "test",
-			"canSendMessages": true,
-			// "name":            users[userID.(string)].Name,
-			// "canSendMessages": users[userID.(string)].Role,
+			"name":            users.Users[userID].Name,
+			"canSendMessages": users.Users[userID].Role,
 		},
 	}
-
 	r.join <- client
 	defer func() {
 		r.leave <- client

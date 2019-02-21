@@ -47,7 +47,7 @@ func (a *authenticator) verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := subprotocols[0]
-	_, ok := a.tokens.Get(token)
+	userID, ok := a.tokens.Get(token)
 
 	if !ok {
 		w.WriteHeader(http.StatusForbidden)
@@ -56,6 +56,7 @@ func (a *authenticator) verify(w http.ResponseWriter, r *http.Request) {
 
 	a.tokens.Delete(token)
 
+	r.Header.Add("User-Id", userID.(string))
 	//get the websocket function handler from the room
 	a.next.ServeHTTP(w, r)
 }

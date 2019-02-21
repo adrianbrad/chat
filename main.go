@@ -5,17 +5,17 @@ import (
 	"html/template"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 	"sync"
 
-	"github.com/adrianbrad/chat/trace"
+	"github.com/adrianbrad/chat/auth"
+	"github.com/adrianbrad/chat/room"
 )
 
-var users = map[string]*user{
-	"1": &user{Name: "brad", Role: true},
-	"2": &user{Name: "john", Role: false},
-	"3": &user{Name: "eusebiu", Role: true},
+var users = map[string]*auth.User{
+	"1": &auth.User{Name: "brad", Role: true},
+	"2": &auth.User{Name: "john", Role: false},
+	"3": &auth.User{Name: "eusebiu", Role: true},
 }
 
 type templateHandler struct {
@@ -56,11 +56,11 @@ func main() {
 		w.WriteHeader(http.StatusTemporaryRedirect)
 	})
 
-	r := newRoom()
-	r.tracer = trace.New(os.Stdout)
-	http.Handle("/room", r)
+	r := room.New()
 
-	go r.run() //get the room going in another thread
+	http.Handle("/room", auth.TokenAuth(10, r))
+
+	go r.Run() //get the room going in another thread
 	//the chatting operation occur in the background
 	//the main goroutine is running the web server
 

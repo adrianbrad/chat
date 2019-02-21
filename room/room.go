@@ -12,9 +12,11 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+//Room implements http.Handler
 type Room interface {
 	Run()
 	ForwardChannel() chan *message.Message
+	ServeHTTP(w http.ResponseWriter, req *http.Request)
 }
 
 type room struct {
@@ -33,7 +35,7 @@ type room struct {
 	tracer trace.Tracer
 }
 
-func New() *room {
+func New() Room {
 	return &room{
 		forward: make(chan *message.Message),
 		join:    make(chan Client),
@@ -83,17 +85,17 @@ var upgrader = &websocket.Upgrader{
 
 //ServeHTTP is used for upgrading a HTTP connection to websocket, storing the connection,create the client and pass it to the join channel for the current room
 func (r *room) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	//here we have to ensure that the token is in a valid form in the subprotocols header
-	socket, err := upgrader.Upgrade(w, req, http.Header{"Sec-WebSocket-Protocol": websocket.Subprotocols(req)})
-	if err != nil {
-		log.Fatal("ServeHTTP:", err)
-		return
-	}
-
 	//User-Id header was passed before by the auth or client
 	userID := req.Header.Get("User-Id")
 	if userID == "" {
 		log.Fatal("Room.ServeHTTP:", "No user ID found in the request header")
+		return
+	}
+
+	//here we have to ensure that the token is in a valid form in the subprotocols header
+	socket, err := upgrader.Upgrade(w, req, http.Header{"Sec-WebSocket-Protocol": websocket.Subprotocols(req)})
+	if err != nil {
+		log.Fatal("ServeHTTP:", err)
 		return
 	}
 

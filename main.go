@@ -45,16 +45,16 @@ func main() {
 	http.Handle("/assets/", http.StripPrefix("/assets", http.FileServer(http.Dir("/home/brad/workspace/go/src/github.com/adrianbrad/chat/assets"))))
 
 	http.Handle("/chat", &templateHandler{filename: "chat.html"})
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Location", "/chat")
 		w.WriteHeader(http.StatusTemporaryRedirect)
 	})
 
-	r := room.New()
+	room := room.New()
+	http.Handle("/rooms/1", auth.TokenAuth(10, room))
 
-	http.Handle("/room/1", auth.TokenAuth(10, r))
-
-	go r.Run() //get the room going in another thread
+	go room.Run() //get the room going in another thread
 	//the chatting operation occur in the background
 	//the main goroutine is running the web server
 
@@ -64,4 +64,24 @@ func main() {
 	if err != nil {
 		log.Fatal("ListenAndServer:", err)
 	}
+}
+
+var counter = 1
+
+//*TODO: find a way to create dynamic links for rooms, or handle the requests based on the url
+//format can be /rooms or /rooms/{id}
+func roomHandler(w http.ResponseWriter, r *http.Request) {
+	//if path is /rooms we expect a post request to create a room
+	// if path.Base(r.URL.Path) == "rooms" {
+	// 	if r.Method != http.MethodPost {
+	// 		w.WriteHeader(http.StatusBadRequest)
+	// 		return
+	// 	}
+	// }
+	room := room.New()
+	http.Handle("/rooms/"+string(counter), auth.TokenAuth(10, room))
+	go room.Run() //get the room going in another thread
+	//the chatting operation occur in the background
+	//the main goroutine is running the web server
+
 }

@@ -12,6 +12,8 @@ import (
 	"github.com/adrianbrad/chat/room"
 )
 
+var rooms map[string]room.Room
+
 type templateHandler struct {
 	once     sync.Once
 	filename string

@@ -1,4 +1,4 @@
-package room
+package channel
 
 import (
 	"github.com/adrianbrad/chat/message"
@@ -16,36 +16,36 @@ type client struct {
 	socket *websocket.Conn
 	//send is the buffered channel on which messages are queued ready to be forwarded to the user browser
 	send chan *message.Message
-	//room is the room this client is chatting in, used to broadcast messages to everyone else in the room
-	room Room
+	//channel is the channel this client is chatting in, used to broadcast messages to everyone else in the channel
+	channel Channel
 	//userData is used for storing information about the user
 	userData map[string]interface{}
 }
 
-func (c *client) Read() {
-	defer c.socket.Close()
+func (client *client) Read() {
+	defer client.socket.Close()
 
 	for {
 		var msg *message.Message
-		err := c.socket.ReadJSON(&msg)
+		err := client.socket.ReadJSON(&msg)
 
 		//if reading from socket fails the for loop is brocken and the socket is closed
 		if err != nil {
 			return
 		}
-		msg.Name = c.userData["name"].(string)
+		msg.Name = client.userData["name"].(string)
 
-		if c.userData["canSendMessages"].(bool) {
-			c.room.ForwardChannel() <- msg
+		if client.userData["canSendMessages"].(bool) {
+			client.channel.ForwardChannel() <- msg
 		}
 	}
 }
 
-func (c *client) Write() {
-	defer c.socket.Close()
+func (client *client) Write() {
+	defer client.socket.Close()
 
-	for msg := range c.send {
-		err := c.socket.WriteJSON(msg)
+	for msg := range client.send {
+		err := client.socket.WriteJSON(msg)
 		//if writing to socket fails the for loop is brocken and the socket is closed
 		if err != nil {
 			return

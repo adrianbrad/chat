@@ -1,4 +1,4 @@
-package room
+package channel
 
 import (
 	"fmt"
@@ -8,35 +8,34 @@ import (
 
 	"github.com/adrianbrad/chat/message"
 	"github.com/adrianbrad/chat/trace"
-	"github.com/adrianbrad/chat/users"
 	"github.com/gorilla/websocket"
 )
 
-//Room implements http.Handler
-type Room interface {
+//Channel implements http.Handler
+type Channel interface {
 	Run()
 	ForwardChannel() chan *message.Message
 	ServeHTTP(w http.ResponseWriter, req *http.Request)
 }
 
-type room struct {
+type channel struct {
 	//forward is a channel that holds incoming message
 	//incoming messages should be broadcasted to the other channels
 	forward chan *message.Message
-	//join is a channel for clients wishing to join the room
+	//join is a channel for clients wishing to join the channel
 	join chan Client
-	//leave is a channel for clients withing to leave the room
+	//leave is a channel for clients withing to leave the channel
 	leave chan Client
 	// * the join and leave channels exist simply to allow us to safely add and remove clients from the clients map
 
-	//clients holds all current clients in this room
+	//clients holds all current clients in this channel
 	clients map[Client]bool
-	//tracer will receive trace information of activity in the room
+	//tracer will receive trace information of activity in the channel
 	tracer trace.Tracer
 }
 
-func New() Room {
-	return &room{
+func New() Channel {
+	return &channel{
 		forward: make(chan *message.Message),
 		join:    make(chan Client),
 		leave:   make(chan Client),
@@ -45,7 +44,7 @@ func New() Room {
 	}
 }
 
-func (r *room) Run() {
+func (r *channel) Run() {
 	for {
 		select { //this select statement will run the code for a particular channel when a message is received on that channel, it will only run a code block at a time so we ensure syncronization for the r.clients map
 		case client := <-r.join:
@@ -83,14 +82,14 @@ var upgrader = &websocket.Upgrader{
 	},
 }
 
-//ServeHTTP is used for upgrading a HTTP connection to websocket, storing the connection,create the client and pass it to the join channel for the current room
-func (r *room) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+//ServeHTTP is used for upgrading a HTTP connection to websocket, storing the connection,create the client and pass it to the join channel for the current channel
+func (r *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	//User-Id header was passed before by the auth or client
-	userID := req.Header.Get("User-Id")
-	if userID == "" {
-		log.Fatal("Room.ServeHTTP:", "No user ID found in the request header")
-		return
-	}
+	// userID := req.Header.Get("User-Id")
+	// if userID == "" {
+	// 	log.Fatal("Channel.ServeHTTP:", "No user ID found in the request header")
+	// 	return
+	// }
 
 	//here we have to ensure that the token is in a valid form in the subprotocols header
 	socket, err := upgrader.Upgrade(w, req, http.Header{"Sec-WebSocket-Protocol": websocket.Subprotocols(req)})
@@ -100,12 +99,12 @@ func (r *room) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	client := &client{
-		socket: socket,
-		send:   make(chan *message.Message, messageBufferSize),
-		room:   r,
+		socket:  socket,
+		send:    make(chan *message.Message, messageBufferSize),
+		channel: r,
 		userData: map[string]interface{}{
-			"name":            users.Users[userID].Name,
-			"canSendMessages": users.Users[userID].Role,
+			"name":            "temp",
+			"canSendMessages": true,
 		},
 	}
 	r.join <- client
@@ -117,6 +116,6 @@ func (r *room) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	client.Read()     //we keep reading messages in this thread, thus blocking operations and keeping the connection alive
 }
 
-func (r *room) ForwardChannel() chan *message.Message {
+func (r *channel) ForwardChannel() chan *message.Message {
 	return r.forward
 }

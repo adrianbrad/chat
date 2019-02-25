@@ -7,4 +7,6 @@ go build
 ./chat
 ```
 
-Go to `localhost:8080/chat`
+Channel has rooms
+
+Go to `localhost:8080/talk/{channel}`

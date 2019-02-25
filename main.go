@@ -7,18 +7,13 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"sync"
 
-	"github.com/go-chi/render"
-
+	"github.com/adrianbrad/chat/auth"
+	"github.com/adrianbrad/chat/channel"
 	"github.com/adrianbrad/chat/config"
-	"github.com/adrianbrad/chat/model"
-	"github.com/adrianbrad/chat/repository"
-	"github.com/adrianbrad/chat/room"
 	"github.com/go-chi/chi"
 	_ "github.com/lib/pq"
-	"github.com/spf13/viper"
 )
 
 var db *sql.DB
@@ -50,142 +45,68 @@ func (t *templateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	config := loadConfig()
+	c := config.Load("config")
 
 	// * initDB is called first, then the return value is assigned to the defer
-	defer initDB(config.Database)()
+	defer initDB(c.Database)()
 
-	r := chi.NewRouter()
-	r.Use(logging)
+	channel := channel.New()
 
-	r.Method(http.MethodGet, "/assets/", http.StripPrefix("/assets", http.FileServer(http.Dir("/home/brad/workspace/go/src/github.com/adrianbrad/chat/assets"))))
-
-	r.Method(http.MethodGet, "/chat", &templateHandler{filename: "chat.html"})
-
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Location", "/chat")
-		w.WriteHeader(http.StatusTemporaryRedirect)
-	})
-
-	repo := repository.NewDbUsersRepository(db)
-	r.Get("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-		res, _ := repo.GetOne(id)
-		render.JSON(w, r, res)
-	})
-	r.Get("/users", func(w http.ResponseWriter, r *http.Request) {
-		res := repo.GetAll()
-		render.JSON(w, r, res)
-	})
-	r.Post("/users", func(w http.ResponseWriter, r *http.Request) {
-		var u model.User
-		render.DecodeJSON(r.Body, &u)
-		id, err := repo.Create(u)
-		fmt.Println(err)
-		render.JSON(w, r, id)
-	})
-
-	roomRepo := repository.NewDbRoomsRepository(db)
-	r.Get("/rooms/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-		res, _ := roomRepo.GetOne(id)
-		render.JSON(w, r, res)
-	})
-	r.Get("/rooms", func(w http.ResponseWriter, r *http.Request) {
-		res := roomRepo.GetAll()
-		render.JSON(w, r, res)
-	})
-	r.Post("/rooms", func(w http.ResponseWriter, r *http.Request) {
-		var u model.Room
-		render.DecodeJSON(r.Body, &u)
-		id, err := roomRepo.Create(u)
-		fmt.Println(err)
-		render.JSON(w, r, id)
-	})
-
-	messageRepo := repository.NewDbMessagesRepository(db)
-	r.Get("/messages/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-		res, _ := messageRepo.GetOne(id)
-		render.JSON(w, r, res)
-	})
-	r.Get("/messages", func(w http.ResponseWriter, r *http.Request) {
-		res := messageRepo.GetAll()
-		render.JSON(w, r, res)
-	})
-	r.Post("/messages", func(w http.ResponseWriter, r *http.Request) {
-		var u model.Message
-		render.DecodeJSON(r.Body, &u)
-		id, err := messageRepo.Create(u)
-		fmt.Println(err)
-		render.JSON(w, r, id)
-	})
-
-	roleRepo := repository.NewDbRolesRepository(db)
-	r.Get("/roles/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-		res, _ := roleRepo.GetOne(id)
-		render.JSON(w, r, res)
-	})
-	r.Get("/roles", func(w http.ResponseWriter, r *http.Request) {
-		res := roleRepo.GetAll()
-		render.JSON(w, r, res)
-	})
-	r.Post("/roles", func(w http.ResponseWriter, r *http.Request) {
-		var u model.Role
-		render.DecodeJSON(r.Body, &u)
-		id, err := roleRepo.Create(u)
-		fmt.Println(err)
-		render.JSON(w, r, id)
-	})
-
-	permissionRepo := repository.NewDbPermissionsRepository(db)
-	r.Get("/permissions/{id}", func(w http.ResponseWriter, r *http.Request) {
-		id, _ := strconv.Atoi(chi.URLParam(r, "id"))
-		res, _ := permissionRepo.GetOne(id)
-		render.JSON(w, r, res)
-	})
-	r.Get("/permissions", func(w http.ResponseWriter, r *http.Request) {
-		res := permissionRepo.GetAll()
-		render.JSON(w, r, res)
-	})
-	r.Post("/permissions", func(w http.ResponseWriter, r *http.Request) {
-		var u model.Permission
-		render.DecodeJSON(r.Body, &u)
-		id, err := permissionRepo.Create(u)
-		fmt.Println(err)
-		render.JSON(w, r, id)
-	})
-
-	room := room.New()
-	// http.Handle("/rooms/1", auth.TokenAuth(10, room))
-
-	go room.Run() //get the room going in another thread
+	go channel.Run() //get the channel going in another thread
 	//the chatting operation occur in the background
 	//the main goroutine is running the web server
 
-	log.Println("Starting web server on", config.Server.Port)
+	log.Println("Starting web server on", c.Server.Port)
 
-	err := http.ListenAndServe(config.Server.Port, r)
+	err := http.ListenAndServe(c.Server.Port, routes(channel))
 	if err != nil {
 		log.Fatal("ListenAndServer:", err)
 	}
 }
 
-func loadConfig() config.Configuration {
-	viper.SetConfigName("config")
-	viper.AddConfigPath("./config")
-	var config config.Configuration
+func routes(channel channel.Channel) (r *chi.Mux) {
+	r = chi.NewRouter()
+	// * middlewares
+	r.Use(logging)
+	r.Use(authRequests)
+	// * http.HandleFunc(s)
+	r.Get("/", redirectToChat)
+	// * http.Handler(s)
+	r.Method(http.MethodGet, "/assets/", http.StripPrefix("/assets", http.FileServer(http.Dir("/home/brad/workspace/go/src/github.com/adrianbrad/chat/assets"))))
+	r.Method(http.MethodGet, "/chat", &templateHandler{filename: "chat.html"})
+	r.Handle("/talk/{channel}", validChannel(auth.TokenAuth(10, channel)))
+	return r
+}
 
-	if err := viper.ReadInConfig(); err != nil {
-		log.Fatalf("Error reading config file, %s", err)
-	}
-	err := viper.Unmarshal(&config)
-	if err != nil {
-		log.Fatalf("unable to decode into struct, %v", err)
-	}
+func validChannel(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var channelExists bool
+		err := db.QueryRow(`
+		SELECT EXISTS(
+			SELECT "ChannelID"
+		FROM "Channels"
+		WHERE "Name"=$1)`, chi.URLParam(r, "channel")).Scan(&channelExists)
 
-	return config
+		if err != nil || !channelExists {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func authRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Println("auth requests")
+		// TODO
+		next.ServeHTTP(w, r)
+	})
+}
+
+func redirectToChat(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Location", "/chat")
+	w.WriteHeader(http.StatusTemporaryRedirect)
 }
 
 func logging(next http.Handler) http.Handler {

@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/adrianbrad/chat/message"
 	"github.com/adrianbrad/chat/trace"
@@ -14,7 +15,7 @@ import (
 //Channel implements http.Handler
 type Channel interface {
 	Run()
-	ForwardChannel() chan *message.Message
+	GetForwardChannel() chan *message.Message
 	ServeHTTP(w http.ResponseWriter, req *http.Request)
 }
 
@@ -29,9 +30,11 @@ type channel struct {
 	// * the join and leave channels exist simply to allow us to safely add and remove clients from the clients map
 
 	//clients holds all current clients in this channel
-	clients map[Client]bool
+	clients map[int]Client
 	//tracer will receive trace information of activity in the channel
 	tracer trace.Tracer
+	//channelRepo persists the changes made to the channel
+	// channelRepo repository.
 }
 
 func New() Channel {
@@ -39,29 +42,29 @@ func New() Channel {
 		forward: make(chan *message.Message),
 		join:    make(chan Client),
 		leave:   make(chan Client),
-		clients: make(map[Client]bool),
+		clients: make(map[int]Client),
 		tracer:  trace.New(os.Stdout),
 	}
 }
 
-func (r *channel) Run() {
+func (c *channel) Run() {
 	for {
 		select { //this select statement will run the code for a particular channel when a message is received on that channel, it will only run a code block at a time so we ensure syncronization for the r.clients map
-		case client := <-r.join:
+		case client := <-c.join:
 			//joining
-			r.clients[client] = true
-			r.tracer.Trace("New cient joined")
-		case client := <-r.leave:
+			c.clients[client.GetUserID()] = client
+			c.tracer.Trace("New cient joined")
+		case client := <-c.leave:
 			//leaving
-			delete(r.clients, client)
-			close(client.SendChannel())
-			r.tracer.Trace("Client left")
-		case msg := <-r.forward:
-			r.tracer.Trace("Message received: ", string(msg.Message))
+			delete(c.clients, client.GetUserID())
+			close(client.GetSendChannel())
+			c.tracer.Trace("Client left")
+		case msg := <-c.forward:
+			c.tracer.Trace("Message received: ", string(msg.Message))
 			//broadcast message to all clients
-			for client := range r.clients {
-				client.SendChannel() <- msg
-				r.tracer.Trace(" -- sent to client")
+			for id := range c.clients {
+				c.clients[id].GetSendChannel() <- msg
+				c.tracer.Trace(" -- sent to client")
 			}
 		}
 	}
@@ -83,39 +86,44 @@ var upgrader = &websocket.Upgrader{
 }
 
 //ServeHTTP is used for upgrading a HTTP connection to websocket, storing the connection,create the client and pass it to the join channel for the current channel
-func (r *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	//User-Id header was passed before by the auth or client
-	// userID := req.Header.Get("User-Id")
-	// if userID == "" {
-	// 	log.Fatal("Channel.ServeHTTP:", "No user ID found in the request header")
-	// 	return
-	// }
+func (c *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// User-Id header was passed before by the auth or client
+	userIDstr := req.Header.Get("User-Id")
+	if userIDstr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println("Channel.ServeHTTP:", "No user ID found in the request header")
+		return
+	}
+	userID, err := strconv.Atoi(userIDstr)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		log.Println("Channel.ServeHTTP:", "Invalid user ID passed in header")
+	}
 
-	//here we have to ensure that the token is in a valid form in the subprotocols header
+	// For the connection to establish we have to send the subprotocol(token) back to the client - it's from websocket specifications
 	socket, err := upgrader.Upgrade(w, req, http.Header{"Sec-WebSocket-Protocol": websocket.Subprotocols(req)})
 	if err != nil {
-		log.Fatal("ServeHTTP:", err)
+		log.Println("Channel.ServeHTTP:", err)
 		return
 	}
 
 	client := &client{
 		socket:  socket,
 		send:    make(chan *message.Message, messageBufferSize),
-		channel: r,
+		channel: c,
 		userData: map[string]interface{}{
-			"name":            "temp",
-			"canSendMessages": true,
+			"UserID": userID,
 		},
 	}
-	r.join <- client
+	c.join <- client
 	defer func() {
-		r.leave <- client
+		c.leave <- client
 	}()
 
 	go client.Write() //we run the write method in a different thread
 	client.Read()     //we keep reading messages in this thread, thus blocking operations and keeping the connection alive
 }
 
-func (r *channel) ForwardChannel() chan *message.Message {
-	return r.forward
+func (c *channel) GetForwardChannel() chan *message.Message {
+	return c.forward
 }

@@ -7,27 +7,27 @@ import (
 	"github.com/adrianbrad/chat/model"
 )
 
-type PermissionRepository interface {
-	GetOne(int) (model.Permission, error)
-	GetAll() []model.Permission
-	Create(model.Permission) (int, error)
-}
-
 type dbPermissionsRepository struct {
-	db *sql.DB
+	db                 *sql.DB
+	getOneQuery        string
+	getAllQuery        string
+	createQuery        string
+	checkIfExistsQuery string
 }
 
-func NewDbPermissionsRepository(database *sql.DB) PermissionRepository {
-	return &dbPermissionsRepository{db: database}
+func NewDbPermissionsRepository(database *sql.DB) Repository {
+	return &dbPermissionsRepository{
+		db:                 database,
+		getOneQuery:        getOneQuery("Permission", "PermissionID", "Name", "Description"),
+		getAllQuery:        getAllQuery("Permission", "PermissionID", "Name", "Description"),
+		createQuery:        createOneQuery("Permission", "Name", "Description"),
+		checkIfExistsQuery: checkIfExistsQuery("Permission"),
+	}
 }
 
-func (r dbPermissionsRepository) GetOne(id int) (permission model.Permission, err error) {
-	err = r.db.QueryRow(`
-	SELECT 
-		"PermissionID", "Name", "Description"
-	FROM "Permissions"
-	WHERE "PermissionID"=$1
-	`, id).Scan(
+func (r dbPermissionsRepository) GetOne(id int) (interface{}, error) {
+	var permission model.Permission
+	err := r.db.QueryRow(r.getOneQuery, id).Scan(
 		&permission.ID,
 		&permission.Name,
 		&permission.Description)
@@ -38,11 +38,8 @@ func (r dbPermissionsRepository) GetOne(id int) (permission model.Permission, er
 	return permission, nil
 }
 
-func (r dbPermissionsRepository) GetAll() (permissions []model.Permission) {
-	rows, err := r.db.Query(`
-	SELECT
-		"PermissionID", "Name", "Description"
-	FROM "Permissions"`)
+func (r dbPermissionsRepository) GetAll() (permissions []interface{}) {
+	rows, err := r.db.Query(r.getAllQuery)
 	if err != nil {
 		log.Println("Query error: ", err)
 		return
@@ -68,13 +65,17 @@ func (r dbPermissionsRepository) GetAll() (permissions []model.Permission) {
 	return permissions
 }
 
-func (r dbPermissionsRepository) Create(permission model.Permission) (id int, err error) {
-	if err := r.db.QueryRow(`
-	INSERT INTO "Permissions"
-		("Name", "Description")
-	VALUES ($1, $2)
-	RETURNING "PermissionID"`, permission.Name, permission.Description).Scan(&id); err != nil {
+func (r dbPermissionsRepository) Create(permissionI interface{}) (id int, err error) {
+	permission := permissionI.(model.Permission)
+	if err := r.db.QueryRow(
+		r.createQuery, permission.Name, permission.Description).
+		Scan(&id); err != nil {
 		return id, err
 	}
 	return id, nil
+}
+
+func (r dbPermissionsRepository) CheckIfExists(permissionID int) (exists bool) {
+	_ = r.db.QueryRow(r.checkIfExistsQuery, permissionID).Scan(&exists)
+	return exists
 }

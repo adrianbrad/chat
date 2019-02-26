@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -19,12 +20,13 @@ type User struct {
 }
 
 type authenticator struct {
-	tokens *cache.Cache
-	next   http.Handler
+	tokens         *cache.Cache
+	next           http.Handler
+	validateUserID func(int) bool
 }
 
-func TokenAuth(seconds time.Duration, handler http.Handler) Authenticator {
-	return &authenticator{cache.New(seconds*time.Second, seconds*time.Second), handler}
+func TokenAuth(seconds time.Duration, handler http.Handler, validateUserID func(int) bool) Authenticator {
+	return &authenticator{cache.New(seconds*time.Second, seconds*time.Second), handler, validateUserID}
 }
 
 func (a *authenticator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -54,10 +56,9 @@ func (a *authenticator) verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.tokens.Delete(token)
-
-	r.Header.Add("User-Id", userID.(string))
-	//get the websocket function handler from the room
+	userIDstr := strconv.Itoa(userID.(int))
+	r.Header.Add("User-Id", userIDstr)
+	//get the websocket function handler from the channel
 	a.next.ServeHTTP(w, r)
 }
 
@@ -69,9 +70,13 @@ func (a *authenticator) authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := string(userIDbytes)
+	userID, err := strconv.Atoi(string(userIDbytes))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
-	if ok := validateUserID(userID); !ok {
+	if ok := a.validateUserID(userID); !ok {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -106,11 +111,4 @@ func createToken() string {
 	b := make([]byte, 4)
 	rand.Read(b)
 	return fmt.Sprintf("%x", b)
-}
-
-func validateUserID(userID string) bool {
-	// if _, ok := users[userID]; ok {
-	return true
-	// }
-	// return false
 }

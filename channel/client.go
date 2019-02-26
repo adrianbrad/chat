@@ -1,6 +1,8 @@
 package channel
 
 import (
+	"strconv"
+
 	"github.com/adrianbrad/chat/message"
 	"github.com/gorilla/websocket"
 )
@@ -8,7 +10,8 @@ import (
 type Client interface {
 	Read()
 	Write()
-	SendChannel() chan *message.Message
+	GetSendChannel() chan *message.Message
+	GetUserID() int
 }
 
 type client struct {
@@ -29,15 +32,15 @@ func (client *client) Read() {
 		var msg *message.Message
 		err := client.socket.ReadJSON(&msg)
 
-		//if reading from socket fails the for loop is brocken and the socket is closed
+		//if reading from socket fails the for loop is broken and the socket is closed
 		if err != nil {
 			return
 		}
-		msg.Name = client.userData["name"].(string)
+		msg.Name = strconv.Itoa(client.userData["UserID"].(int))
 
-		if client.userData["canSendMessages"].(bool) {
-			client.channel.ForwardChannel() <- msg
-		}
+		// if client.userData["canSendMessages"].(bool) {
+		client.channel.GetForwardChannel() <- msg
+		// }
 	}
 }
 
@@ -53,6 +56,10 @@ func (client *client) Write() {
 	}
 }
 
-func (c *client) SendChannel() chan *message.Message {
+func (c *client) GetSendChannel() chan *message.Message {
 	return c.send
+}
+
+func (c *client) GetUserID() int {
+	return c.userData["UserID"].(int)
 }

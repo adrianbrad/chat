@@ -7,27 +7,27 @@ import (
 	"github.com/adrianbrad/chat/model"
 )
 
-type MessagesRepository interface {
-	GetOne(int) (model.Message, error)
-	GetAll() []model.Message
-	Create(model.Message) (int, error)
-}
-
 type dbMessagesRepository struct {
-	db *sql.DB
+	db                 *sql.DB
+	getOneQuery        string
+	getAllQuery        string
+	createQuery        string
+	checkIfExistsQuery string
 }
 
-func NewDbMessagesRepository(database *sql.DB) MessagesRepository {
-	return &dbMessagesRepository{db: database}
+func NewDbMessagesRepository(database *sql.DB) Repository {
+	return &dbMessagesRepository{
+		db:                 database,
+		getOneQuery:        getOneQuery("Message", "MessageID", "Content", "RoomID", "UserID"),
+		getAllQuery:        getAllQuery("Message", "MessageID", "Content", "RoomID", "UserID"),
+		createQuery:        createOneQuery("Message", "Content", "RoomID", "UserID"),
+		checkIfExistsQuery: checkIfExistsQuery("Message"),
+	}
 }
 
-func (r dbMessagesRepository) GetOne(id int) (message model.Message, err error) {
-	err = r.db.QueryRow(`
-	SELECT 
-		"MessageID", "Content", "RoomID", "UserID"
-	FROM "Messages"
-	WHERE "MessageID"=$1
-	`, id).Scan(
+func (r dbMessagesRepository) GetOne(id int) (interface{}, error) {
+	var message model.Message
+	err := r.db.QueryRow(r.getOneQuery, id).Scan(
 		&message.ID,
 		&message.Content,
 		&message.RoomID,
@@ -39,11 +39,8 @@ func (r dbMessagesRepository) GetOne(id int) (message model.Message, err error) 
 	return message, nil
 }
 
-func (r dbMessagesRepository) GetAll() (messages []model.Message) {
-	rows, err := r.db.Query(`
-	SELECT
-		"MessageID", "Content", "RoomID", "UserID"
-	FROM "Messages"`)
+func (r dbMessagesRepository) GetAll() (messages []interface{}) {
+	rows, err := r.db.Query(r.getAllQuery)
 	if err != nil {
 		log.Println("Query error: ", err)
 		return
@@ -70,13 +67,15 @@ func (r dbMessagesRepository) GetAll() (messages []model.Message) {
 	return messages
 }
 
-func (r dbMessagesRepository) Create(message model.Message) (id int, err error) {
-	if err := r.db.QueryRow(`
-	INSERT INTO "Messages"
-		("Content", "UserID", "RoomID")
-	VALUES ($1, $2, $3)
-	RETURNING "MessageID"`, message.Content, message.UserID, message.RoomID).Scan(&id); err != nil {
+func (r dbMessagesRepository) Create(messageI interface{}) (id int, err error) {
+	message := messageI.(model.Message)
+	if err := r.db.QueryRow(r.createQuery, message.Content, message.UserID, message.RoomID).Scan(&id); err != nil {
 		return id, err
 	}
 	return id, nil
+}
+
+func (r dbMessagesRepository) CheckIfExists(messageID int) (exists bool) {
+	_ = r.db.QueryRow(r.checkIfExistsQuery, messageID).Scan(&exists)
+	return exists
 }

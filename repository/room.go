@@ -7,27 +7,27 @@ import (
 	"github.com/adrianbrad/chat/model"
 )
 
-type RoomRepository interface {
-	GetOne(int) (model.Room, error)
-	GetAll() []model.Room
-	Create(model.Room) (int, error)
-}
-
 type dbRoomsRepository struct {
-	db *sql.DB
+	db                 *sql.DB
+	getOneQuery        string
+	getAllQuery        string
+	createQuery        string
+	checkIfExistsQuery string
 }
 
-func NewDbRoomsRepository(database *sql.DB) RoomRepository {
-	return &dbRoomsRepository{db: database}
+func NewDbRoomsRepository(database *sql.DB) Repository {
+	return &dbRoomsRepository{
+		db:                 database,
+		getOneQuery:        getOneQuery("Room", "RoomID", "Name", "Description"),
+		getAllQuery:        getAllQuery("Room", "RoomID", "Name", "Description"),
+		createQuery:        createOneQuery("Room", "Name", "Description"),
+		checkIfExistsQuery: checkIfExistsQuery("Room"),
+	}
 }
 
-func (r dbRoomsRepository) GetOne(id int) (room model.Room, err error) {
-	err = r.db.QueryRow(`
-	SELECT 
-		"RoomID", "Name", "Description"
-	FROM "Rooms"
-	WHERE "RoomID"=$1
-	`, id).Scan(
+func (r dbRoomsRepository) GetOne(id int) (interface{}, error) {
+	var room model.Room
+	err := r.db.QueryRow(r.checkIfExistsQuery, id).Scan(
 		&room.ID,
 		&room.Name,
 		&room.Description)
@@ -38,11 +38,8 @@ func (r dbRoomsRepository) GetOne(id int) (room model.Room, err error) {
 	return room, nil
 }
 
-func (r dbRoomsRepository) GetAll() (rooms []model.Room) {
-	rows, err := r.db.Query(`
-	SELECT
-		"RoomID", "Name", "Description"
-	FROM "Rooms"`)
+func (r dbRoomsRepository) GetAll() (rooms []interface{}) {
+	rows, err := r.db.Query(r.getAllQuery)
 	if err != nil {
 		log.Println("Query error: ", err)
 		return
@@ -68,13 +65,15 @@ func (r dbRoomsRepository) GetAll() (rooms []model.Room) {
 	return rooms
 }
 
-func (r dbRoomsRepository) Create(room model.Room) (id int, err error) {
-	if err := r.db.QueryRow(`
-	INSERT INTO "Rooms"
-		("Name", "Description")
-	VALUES ($1, $2)
-	RETURNING "RoomID"`, room.Name, room.Description).Scan(&id); err != nil {
+func (r dbRoomsRepository) Create(roomI interface{}) (id int, err error) {
+	room := roomI.(model.Room)
+	if err := r.db.QueryRow(r.createQuery, room.Name, room.Description).Scan(&id); err != nil {
 		return id, err
 	}
 	return id, nil
+}
+
+func (r dbRoomsRepository) CheckIfExists(roomID int) (exists bool) {
+	_ = r.db.QueryRow(checkIfExistsQuery("Room"), roomID).Scan(&exists)
+	return exists
 }

@@ -7,27 +7,27 @@ import (
 	"github.com/adrianbrad/chat/model"
 )
 
-type RoleRepository interface {
-	GetOne(int) (model.Role, error)
-	GetAll() []model.Role
-	Create(model.Role) (int, error)
-}
-
 type dbRolesRepository struct {
-	db *sql.DB
+	db                 *sql.DB
+	getOneQuery        string
+	getAllQuery        string
+	createQuery        string
+	checkIfExistsQuery string
 }
 
-func NewDbRolesRepository(database *sql.DB) RoleRepository {
-	return &dbRolesRepository{db: database}
+func NewDbRolesRepository(database *sql.DB) Repository {
+	return &dbRolesRepository{
+		db:                 database,
+		getOneQuery:        getOneQuery("Role", "RoleID", "Name", "Description"),
+		getAllQuery:        getAllQuery("Role", "RoleID", "Name", "Description"),
+		createQuery:        createOneQuery("Role", "Name", "Description"),
+		checkIfExistsQuery: checkIfExistsQuery("Role"),
+	}
 }
 
-func (r dbRolesRepository) GetOne(id int) (role model.Role, err error) {
-	err = r.db.QueryRow(`
-	SELECT 
-		"RoleID", "Name", "Description"
-	FROM "Roles"
-	WHERE "RoleID"=$1
-	`, id).Scan(
+func (r dbRolesRepository) GetOne(id int) (interface{}, error) {
+	var role model.Role
+	err := r.db.QueryRow(r.getOneQuery, id).Scan(
 		&role.ID,
 		&role.Name,
 		&role.Description)
@@ -38,11 +38,8 @@ func (r dbRolesRepository) GetOne(id int) (role model.Role, err error) {
 	return role, nil
 }
 
-func (r dbRolesRepository) GetAll() (roles []model.Role) {
-	rows, err := r.db.Query(`
-	SELECT
-		"RoleID", "Name", "Description"
-	FROM "Roles"`)
+func (r dbRolesRepository) GetAll() (roles []interface{}) {
+	rows, err := r.db.Query(r.getAllQuery)
 	if err != nil {
 		log.Println("Query error: ", err)
 		return
@@ -68,13 +65,17 @@ func (r dbRolesRepository) GetAll() (roles []model.Role) {
 	return roles
 }
 
-func (r dbRolesRepository) Create(role model.Role) (id int, err error) {
-	if err := r.db.QueryRow(`
-	INSERT INTO "Roles"
-		("Name", "Description")
-	VALUES ($1, $2)
-	RETURNING "RoleID"`, role.Name, role.Description).Scan(&id); err != nil {
+func (r dbRolesRepository) Create(roleI interface{}) (id int, err error) {
+	role := roleI.(model.Role)
+	if err := r.db.QueryRow(
+		r.createQuery, role.Name, role.Description).
+		Scan(&id); err != nil {
 		return id, err
 	}
 	return id, nil
+}
+
+func (r dbRolesRepository) CheckIfExists(roleID int) (exists bool) {
+	_ = r.db.QueryRow(r.checkIfExistsQuery, roleID).Scan(&exists)
+	return exists
 }

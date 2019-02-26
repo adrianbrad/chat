@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/adrianbrad/chat/repository"
+
 	"github.com/adrianbrad/chat/auth"
 	"github.com/adrianbrad/chat/channel"
 	"github.com/adrianbrad/chat/config"
@@ -17,6 +19,7 @@ import (
 )
 
 var db *sql.DB
+var userRepository repository.Repository
 
 type templateHandler struct {
 	once     sync.Once
@@ -49,7 +52,7 @@ func main() {
 
 	// * initDB is called first, then the return value is assigned to the defer
 	defer initDB(c.Database)()
-
+	userRepository = repository.NewDbUsersRepository(db)
 	channel := channel.New()
 
 	go channel.Run() //get the channel going in another thread
@@ -74,20 +77,21 @@ func routes(channel channel.Channel) (r *chi.Mux) {
 	// * http.Handler(s)
 	r.Method(http.MethodGet, "/assets/", http.StripPrefix("/assets", http.FileServer(http.Dir("/home/brad/workspace/go/src/github.com/adrianbrad/chat/assets"))))
 	r.Method(http.MethodGet, "/chat", &templateHandler{filename: "chat.html"})
-	r.Handle("/talk/{channel}", validChannel(auth.TokenAuth(10, channel)))
+	r.Handle("/talk/{channel}", validChannel(auth.TokenAuth(10, channel, userRepository.CheckIfExists)))
 	return r
 }
 
+//TODO Add origin verification
 func validChannel(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var channelExists bool
-		err := db.QueryRow(`
+		_ = db.QueryRow(`
 		SELECT EXISTS(
-			SELECT "ChannelID"
+			SELECT 1
 		FROM "Channels"
 		WHERE "Name"=$1)`, chi.URLParam(r, "channel")).Scan(&channelExists)
 
-		if err != nil || !channelExists {
+		if !channelExists {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

@@ -20,6 +20,7 @@ import (
 
 var db *sql.DB
 var userRepository repository.Repository
+var usersChannelsRepository repository.UsersChannelsRepository
 
 type templateHandler struct {
 	once     sync.Once
@@ -52,15 +53,17 @@ func main() {
 
 	// * initDB is called first, then the return value is assigned to the defer
 	defer initDB(c.Database)()
+	// * removing all previous subscribtions as there is nio chance to recover that in case of an unexpected application shutdown
+	db.Exec("TRUNCATE TABLE Users_Rooms")
 	userRepository = repository.NewDbUsersRepository(db)
-	channel := channel.New()
 
+	usersChannelsRepository = repository.NewDbUsersChannelsRepository(db)
+	channel := channel.New(usersChannelsRepository, 1)
 	go channel.Run() //get the channel going in another thread
 	//the chatting operation occur in the background
 	//the main goroutine is running the web server
 
 	log.Println("Starting web server on", c.Server.Port)
-
 	err := http.ListenAndServe(c.Server.Port, routes(channel))
 	if err != nil {
 		log.Fatal("ListenAndServer:", err)

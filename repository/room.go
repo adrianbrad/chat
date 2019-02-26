@@ -18,8 +18,8 @@ type dbRoomsRepository struct {
 func NewDbRoomsRepository(database *sql.DB) Repository {
 	return &dbRoomsRepository{
 		db:                 database,
-		getOneQuery:        getOneQuery("Room", "RoomID", "Name", "Description"),
-		getAllQuery:        getAllQuery("Room", "RoomID", "Name", "Description"),
+		getOneQuery:        getOneQuery("Room", "RoomID", "Name", "Description", "ChannelID"),
+		getAllQuery:        getAllQuery("Room", "RoomID", "Name", "Description", "ChannelID"),
 		createQuery:        createOneQuery("Room", "Name", "Description"),
 		checkIfExistsQuery: checkIfExistsQuery("Room"),
 	}
@@ -30,7 +30,8 @@ func (r dbRoomsRepository) GetOne(id int) (interface{}, error) {
 	err := r.db.QueryRow(r.checkIfExistsQuery, id).Scan(
 		&room.ID,
 		&room.Name,
-		&room.Description)
+		&room.Description,
+		&room.ChannelID)
 	if err != nil {
 		log.Println("Error while fetching room with id", id)
 		return room, err
@@ -51,7 +52,8 @@ func (r dbRoomsRepository) GetAll() (rooms []interface{}) {
 		err = rows.Scan(
 			&room.ID,
 			&room.Name,
-			&room.Description)
+			&room.Description,
+			&room.ChannelID)
 		if err != nil {
 			log.Println("Mapping error", err)
 			return
@@ -67,7 +69,7 @@ func (r dbRoomsRepository) GetAll() (rooms []interface{}) {
 
 func (r dbRoomsRepository) Create(roomI interface{}) (id int, err error) {
 	room := roomI.(model.Room)
-	if err := r.db.QueryRow(r.createQuery, room.Name, room.Description).Scan(&id); err != nil {
+	if err := r.db.QueryRow(r.createQuery, room.Name, room.Description, room.ChannelID).Scan(&id); err != nil {
 		return id, err
 	}
 	return id, nil

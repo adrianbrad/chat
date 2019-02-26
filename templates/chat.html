@@ -64,7 +64,7 @@
                             alert("Error: There is no socket connection.");
                             return false;
                         }
-                    socket.send(JSON.stringify({"Message": msgBox.val()}));
+                    socket.send(JSON.stringify({"Content": msgBox.val()}));
                     msgBox.val("");
                     return false;
                     });

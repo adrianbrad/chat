@@ -74,6 +74,7 @@ func (r dbUsersRepository) GetAll() (users []interface{}) {
 
 func (r dbUsersRepository) Create(userI interface{}) (id int, err error) {
 	user := userI.(model.User)
+	log.Println(r.createQuery)
 	if err := r.db.QueryRow(
 		r.createQuery, user.Name, user.UserData, user.RoleID).
 		Scan(&id); err != nil {

@@ -1,0 +1,158 @@
+package channel
+
+import (
+	"os"
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/adrianbrad/chat/messageProcessor"
+
+	"github.com/adrianbrad/chat/message"
+	"github.com/adrianbrad/chat/trace"
+)
+
+func TestClientJoinsChannel(t *testing.T) {
+	ch := initChannelWithMocks()
+	go ch.Run()
+
+	_ = initMockClients(3, ch)
+
+	time.Sleep(50 * time.Millisecond)
+	assertEqual(t, len(ch.clients), 3) //All clients were found in the db
+
+	cl4err := NewClientMock(1234, ch.joinRoom, ch.leaveRoom, ch.messageQueue)
+	ch.joinChannel <- cl4err
+	time.Sleep(50 * time.Millisecond)
+	assertEqual(t, len(ch.clients), 3) //Client with id 4 is not in the db
+}
+
+func TestClientsSuccesfullyJoinRooms(t *testing.T) {
+	ch := initChannelWithMocks()
+	go ch.Run()
+
+	cls := initMockClients(3, ch)
+
+	cls[0].setNextMessageToRead(cls[0].joinRoomsMessage(1))
+	cls[0].Read()
+	time.Sleep(50 * time.Millisecond)
+	assertEqual(t, len(ch.rooms[1]), 1)
+
+	cls[1].setNextMessageToRead(cls[1].joinRoomsMessage(1))
+	cls[1].Read()
+	time.Sleep(50 * time.Millisecond)
+	assertEqual(t, len(ch.rooms[1]), 2)
+
+	//Client tries to join multiple rooms at once
+	cls[2].setNextMessageToRead(cls[2].joinRoomsMessage(1, 2))
+	cls[2].Read()
+	time.Sleep(50 * time.Millisecond)
+	assertEqual(t, len(ch.rooms[1]), 3)
+	assertEqual(t, len(ch.rooms[2]), 1)
+}
+
+func TestClientsFailToJoinRooms(t *testing.T) {
+	ch := initChannelWithMocks()
+	go ch.Run()
+
+	cls := initMockClients(1, ch)
+	//Client wants to join multiple rooms but one does not exist. it joins the possible ones and receives an error about the non existing room
+	cls[0].setNextMessageToRead(cls[0].joinRoomsMessage(1, 2, 4))
+	cls[0].Read()
+	time.Sleep(50 * time.Millisecond)
+	assertEqual(t, len(ch.rooms[1]), 1)
+	assertEqual(t, len(ch.rooms[2]), 1)
+	assertEqual(t, len(cls[0].messages), 1)
+	assertEqual(t, cls[0].messages[0].Action, "Room does not exist 4")
+
+	//Client wants to join a room but it is already in it
+	cls[0].clearMessages()
+	assertEqual(t, len(cls[0].messages), 0)
+	cls[0].setNextMessageToRead(cls[0].joinRoomsMessage(1))
+	cls[0].Read()
+	time.Sleep(50 * time.Millisecond)
+	assertEqual(t, len(ch.rooms[1]), 1)
+	assertEqual(t, len(cls[0].messages), 1)
+	assertEqual(t, cls[0].messages[0].Action, "Client already in room")
+}
+
+func TestClientsSendMessages(t *testing.T) {
+	ch := initChannelWithMocks()
+	go ch.Run()
+
+	cls := initMockClients(5, ch)
+	cls[0].setNextMessageToReadAndRead(cls[0].joinRoomsMessage(1))
+	cls[1].setNextMessageToReadAndRead(cls[1].joinRoomsMessage(2))
+	cls[2].setNextMessageToReadAndRead(cls[2].joinRoomsMessage(3))
+	cls[3].setNextMessageToReadAndRead(cls[3].joinRoomsMessage(1))
+	cls[4].setNextMessageToReadAndRead(cls[4].joinRoomsMessage(2))
+
+	//0 in room 1, 1 in room 2, 2 in room 3, 3 in room 1, 4 in room 2
+	cls[0].setNextMessageToReadAndRead(cls[0].sendMessageToRooms("To all", -1))
+	time.Sleep(100 * time.Millisecond)
+
+	for _, client := range cls {
+		assertEqual(t, len(client.messages), 1)
+		assertEqual(t, client.messages[0].Message, "To all")
+		assertEqual(t, client.messages[0].UserID, 1)
+	}
+
+	cls = append(cls, NewClientMock(5, ch.joinRoom, ch.leaveRoom, ch.messageQueue))
+	ch.joinChannel <- cls[5]
+	//we created a new client but he is not in any room but he can actually send messages to other rooms
+	cls[5].setNextMessageToReadAndRead(cls[5].sendMessageToRooms("Sending to room 1 and 2", 1, 2))
+	time.Sleep(100 * time.Millisecond)
+
+	assertEqual(t, len(cls[0].messages), 2)
+	assertEqual(t, len(cls[1].messages), 2)
+	assertEqual(t, len(cls[3].messages), 2)
+	assertEqual(t, len(cls[4].messages), 2)
+
+	assertEqual(t, cls[0].messages[1].Message, "Sending to room 1 and 2")
+	assertEqual(t, cls[0].messages[1].UserID, 5)
+	assertEqual(t, cls[1].messages[1].Message, "Sending to room 1 and 2")
+	assertEqual(t, cls[1].messages[1].UserID, 5)
+	assertEqual(t, cls[3].messages[1].Message, "Sending to room 1 and 2")
+	assertEqual(t, cls[3].messages[1].UserID, 5)
+	assertEqual(t, cls[4].messages[1].Message, "Sending to room 1 and 2")
+	assertEqual(t, cls[4].messages[1].UserID, 5)
+}
+
+func initChannelWithMocks() *channel {
+	channelID := 1
+	return &channel{
+		messageQueue:      make(chan *message.ReceivedMessage),
+		joinChannel:       make(chan Client),
+		leaveChannel:      make(chan Client),
+		joinRoom:          make(chan ClientRooms),
+		leaveRoom:         make(chan ClientRooms),
+		clients:           make(map[Client]bool),
+		tracer:            trace.New(os.Stdout),
+		usersChannelsRepo: NewUSersChannelsRepoMock(),
+		channelID:         channelID,
+		usersRepo:         NewUsersRepoMockMock(),
+		messageProcessor:  messageProcessor.New(),
+		rooms: map[int]map[Client]bool{
+			1: map[Client]bool{},
+			2: map[Client]bool{},
+			3: map[Client]bool{},
+		},
+	}
+}
+
+func initMockClients(nrOfClients int, ch *channel) (clients []*clientMock) {
+	for i := 0; i < nrOfClients; i++ {
+		cm := NewClientMock(i+1, ch.joinRoom, ch.leaveRoom, ch.messageQueue)
+		clients = append(clients, cm)
+		//this happens in channel.ServeHTTP
+		ch.joinChannel <- cm
+	}
+	return
+}
+
+func assertEqual(t *testing.T, a interface{}, b interface{}) {
+	if a == b {
+		return
+	}
+	t.Errorf("Received %v (type %v), expected %v (type %v)", a, reflect.TypeOf(a), b, reflect.TypeOf(b))
+}

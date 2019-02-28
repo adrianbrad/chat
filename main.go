@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/adrianbrad/chat/messageProcessor"
+
 	"github.com/adrianbrad/chat/repository"
 
 	"github.com/adrianbrad/chat/auth"
@@ -58,7 +60,7 @@ func main() {
 	userRepository = repository.NewDbUsersRepository(db)
 
 	usersChannelsRepository = repository.NewDbUsersChannelsRepository(db)
-	channel := channel.New(usersChannelsRepository, 1, userRepository)
+	channel := channel.New(usersChannelsRepository, 1, userRepository, messageProcessor.New(), []int{1, 2})
 	go channel.Run() //get the channel going in another thread
 	//the chatting operation occur in the background
 	//the main goroutine is running the web server

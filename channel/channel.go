@@ -1,10 +1,13 @@
 package channel
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
+
+	"github.com/adrianbrad/chat/messageProcessor"
 
 	"github.com/adrianbrad/chat/message"
 	"github.com/adrianbrad/chat/model"
@@ -13,34 +16,26 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-//Channel implements http.Handler
+//Channel extends http.Handler
 type Channel interface {
-	ChannelManager
 	Run()
 	ServeHTTP(http.ResponseWriter, *http.Request)
-
-	MessageQueue() chan *message.BroadcastedMessage
-	JoinRoom() chan Client
-	LeaveRoom() chan Client
-}
-
-type ChannelManager interface {
-	AddToRooms(int, Client)
-	RemoveFromRooms(int, Client) error
+	JoinRoom() chan ClientRooms
+	LeaveRoom() chan ClientRooms
 }
 
 type channel struct {
 	//receivedMessages is a channel that holds incoming message
 	//incoming messages should be broadcasted to the other channels
-	messageQueue chan *message.BroadcastedMessage
+	messageQueue chan *message.ReceivedMessage
 	//joinChannel is a channel for clients wishing to joinChannel the channel
 	joinChannel chan Client
 	//leaveChannel is a channel for clients withing to leaveChannel the channel
 	leaveChannel chan Client
 	//joinRoom is a channel for wsConnections wishing to subscribe to a room messages
-	joinRoom chan Client
+	joinRoom chan ClientRooms
 	//leaveRoom is a channel for wsConnections wishing to unsubscribe from a room messages
-	leaveRoom chan Client
+	leaveRoom chan ClientRooms
 	// * the joinChannel, leaveChannel, joinRoom and leaveRoom channels exist simply to allow us to safely add and remove clients from the clients map
 
 	//clients holds all current clients in this channel
@@ -53,20 +48,30 @@ type channel struct {
 	//channel ID holds the current channel id
 	channelID int
 	//rooms hold references for all the connections in a room RoomID -> A client with a WebsocketConn
-	rooms map[int][]Client
+	rooms map[int]map[Client]bool
+	//messageProcessor is used for handling incoming messages transforming them to broadcasted messages or doing the actions requested by the message
+	messageProcessor messageProcessor.MessageProcessor
 }
 
-func New(repo repository.UsersChannelsRepository, channelID int, usersRepo repository.Repository) Channel {
-	return &channel{
-		messageQueue:      make(chan *message.BroadcastedMessage),
+func New(usersChannelsRepo repository.UsersChannelsRepository, channelID int, usersRepo repository.Repository, messageProcessor messageProcessor.MessageProcessor, roomIDs []int) Channel {
+	c := &channel{
+		messageQueue:      make(chan *message.ReceivedMessage),
 		joinChannel:       make(chan Client),
 		leaveChannel:      make(chan Client),
+		joinRoom:          make(chan ClientRooms),
+		leaveRoom:         make(chan ClientRooms),
 		clients:           make(map[Client]bool),
 		tracer:            trace.New(os.Stdout),
-		usersChannelsRepo: repo,
+		usersChannelsRepo: usersChannelsRepo,
 		channelID:         channelID,
 		usersRepo:         usersRepo,
+		messageProcessor:  messageProcessor,
+		rooms:             make(map[int]map[Client]bool),
 	}
+	for _, roomID := range roomIDs {
+		c.rooms[roomID] = make(map[Client]bool)
+	}
+	return c
 }
 
 func (c *channel) Run() {
@@ -79,8 +84,8 @@ func (c *channel) Run() {
 				c.clients[client] = true
 				c.tracer.Trace("New client joined")
 			} else {
-				log.Println("Channel.Run -for.select.case .joinChannel: ", err)
-				client.CloseSocket()
+				log.Println("Channel.Run -for.select.case.joinChannel: ", err)
+				client.Close()
 			}
 		case client := <-c.leaveChannel:
 			//leaving
@@ -89,18 +94,16 @@ func (c *channel) Run() {
 			c.tracer.Trace("Client left")
 		case msg := <-c.messageQueue:
 			c.tracer.Trace("Message received: ", msg)
-
 			//TODO broadcast message to specified rooms
 			//for clients in rooms[roomID] -> client.ForwardMessage() <- msg
-
-			for client := range c.clients {
-				client.ForwardMessage() <- msg
-				c.tracer.Trace(" -- sent to client")
+			c.broadcastMessage(c.messageProcessor.ProcessMessage(msg))
+		case clientRoom := <-c.joinRoom:
+			err := c.addClientToRoom(clientRoom)
+			if err != nil {
+				clientRoom.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
 			}
-		case joiningConn := <-c.joinRoom:
-			log.Println(joiningConn)
-		case leavingConn := <-c.leaveRoom:
-			log.Println(leavingConn)
+		case clientRoom := <-c.leaveRoom:
+			log.Println(clientRoom)
 		}
 	}
 }
@@ -135,22 +138,19 @@ func (c *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Println("Channel.ServeHTTP:", "Invalid user ID passed in header")
 	}
 
+	user, err := c.usersRepo.GetOne(userID)
+	if err != nil {
+		log.Println("Canot find user with ID:", userID, "psql err:", err)
+	}
+
 	// For the connection to establish we have to send the subprotocol(token) back to the client - it's from websocket specifications
 	socket, err := upgrader.Upgrade(w, req, http.Header{"Sec-WebSocket-Protocol": websocket.Subprotocols(req)})
 	if err != nil {
 		log.Println("Channel.ServeHTTP:", err)
 		return
 	}
-	user, err := c.usersRepo.GetOne(userID)
-	if err != nil {
-		log.Println("Canot find user with ID:", userID, "psql err:", err)
-	}
-	client := &client{
-		socket:         socket,
-		forwardMessage: make(chan *message.BroadcastedMessage, messageBufferSize),
-		channel:        c,
-		user:           user.(model.User),
-	}
+
+	client := NewClient(socket, make(chan *message.BroadcastedMessage, messageBufferSize), c.messageQueue, user.(model.User), c.joinRoom, c.leaveRoom)
 	c.joinChannel <- client
 	defer func() {
 		c.leaveChannel <- client
@@ -160,22 +160,53 @@ func (c *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	client.Read()     //we keep reading messages in this thread, thus blocking operations and keeping the connection alive
 }
 
-func (c channel) MessageQueue() chan *message.BroadcastedMessage {
-	return c.messageQueue
+func (c channel) broadcastMessage(bm *message.BroadcastedMessage) {
+	if len(bm.RoomIDs) == 1 && bm.RoomIDs[0] == -1 { //broadcast to all rooms
+		for _, room := range c.rooms {
+			for client := range room {
+				client.ForwardMessage() <- bm
+			}
+		}
+	}
+
+	for _, roomID := range bm.RoomIDs {
+		if room, ok := c.rooms[roomID]; ok {
+			for clientInRoom := range room {
+				clientInRoom.ForwardMessage() <- bm
+			}
+		}
+	}
+	c.tracer.Trace(" -- sent to client")
 }
 
-func (c *channel) AddToRooms(roomID int, client Client) {
-	c.rooms[roomID] = append(c.rooms[roomID], client)
+func (c *channel) addClientToRoom(clientRoom ClientRooms) (err error) {
+	for _, roomID := range clientRoom.Rooms {
+		if room, ok := c.rooms[roomID]; ok {
+			if _, clientAlreadyInRoom := room[clientRoom.Client]; !clientAlreadyInRoom {
+				room[clientRoom.Client] = true
+			} else {
+				err = fmt.Errorf("Client already in room")
+			}
+		} else {
+			err = fmt.Errorf("Room does not exist %d", roomID)
+		}
+	}
+	return
 }
 
-func (c *channel) RemoveFromRooms(roomID int, client Client) (err error) {
+func (c *channel) removeClientFromRoom(client Client, roomID int) error {
+	if room, ok := c.rooms[roomID]; ok {
+		delete(room, client)
+	} else {
+		log.Println("Room does not exist")
+	}
 	return nil
 }
 
-func (c channel) JoinRoom() chan Client {
+func (c channel) JoinRoom() chan ClientRooms {
 	return c.joinRoom
 }
 
-func (c channel) LeaveRoom() chan Client {
+func (c channel) LeaveRoom() chan ClientRooms {
 	return c.leaveRoom
 }

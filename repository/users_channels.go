@@ -20,7 +20,7 @@ func NewDbUsersChannelsRepository(database *sql.DB) UsersChannelsRepository {
 	}
 }
 
-func (r usersChannelsRepository) AddOrUpdateUserToChannel(userID int, channelID int) (err error) {
+func (r usersChannelsRepository) AddOrUpdateUserToChannel(userID, channelID int) (err error) {
 	_, err = r.db.Exec(r.addOrUpdateUserChannelQuery, userID, channelID, "now()")
 	return err
 }

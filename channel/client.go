@@ -14,18 +14,33 @@ type Client interface {
 	Write()
 	ForwardMessage() chan *message.BroadcastedMessage
 	GetUserID() int
-	CloseSocket()
+	Close()
 }
 
 type client struct {
 	//socket is the websocket connection for this client
 	socket *websocket.Conn
-	//send is the buffered channel on which messages are queued ready to be forwarded to the user browser
+	//forwardMessage is the buffered channel on which messages are queued ready to be forwarded to the user browser
 	forwardMessage chan *message.BroadcastedMessage
 	//channel is the channel this client is chatting in, used to broadcast messages to everyone else in the channel
-	channel Channel
+	channelMessageQueue chan *message.ReceivedMessage
+	//join
+	join chan ClientRooms
+	//leave
+	leave chan ClientRooms
 	//userData is used for storing information about the user
 	user model.User
+}
+
+func NewClient(socket *websocket.Conn, forwardMessage chan *message.BroadcastedMessage, incomingMessage chan *message.ReceivedMessage, user model.User, join chan ClientRooms, leave chan ClientRooms) Client {
+	return &client{
+		socket:              socket,
+		forwardMessage:      forwardMessage,
+		channelMessageQueue: incomingMessage,
+		user:                user,
+		join:                join,
+		leave:               leave,
+	}
 }
 
 //We process the message here. This is the first place they reach
@@ -43,13 +58,12 @@ func (client *client) Read() {
 
 		switch receivedMessage.Action {
 		case "join":
-			client.channel.JoinRoom() <- client
-			client.ForwardMessage() <- client.sendHistory(receivedMessage)
+			client.join <- ClientRooms{client, receivedMessage.RoomIDs}
+			// client.ForwardMessage() <- client.sendHistory(receivedMessage)
 		case "leave":
-			client.channel.LeaveRoom() <- client
+			client.leave <- ClientRooms{client, receivedMessage.RoomIDs}
 		case "message":
-			messageToBeBroadcasted := client.processMessage(receivedMessage)
-			client.channel.MessageQueue() <- messageToBeBroadcasted
+			client.channelMessageQueue <- receivedMessage
 		}
 	}
 }
@@ -84,6 +98,6 @@ func (client *client) GetUserID() int {
 	return client.user.ID
 }
 
-func (client *client) CloseSocket() {
+func (client *client) Close() {
 	client.socket.Close()
 }

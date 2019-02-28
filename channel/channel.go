@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/adrianbrad/chat/message"
+	"github.com/adrianbrad/chat/model"
 	"github.com/adrianbrad/chat/repository"
 	"github.com/adrianbrad/chat/trace"
 	"github.com/gorilla/websocket"
@@ -48,13 +49,14 @@ type channel struct {
 	tracer trace.Tracer
 	//repo persists the changes made to the channel
 	usersChannelsRepo repository.UsersChannelsRepository
+	usersRepo         repository.Repository
 	//channel ID holds the current channel id
 	channelID int
 	//rooms hold references for all the connections in a room RoomID -> A client with a WebsocketConn
 	rooms map[int][]Client
 }
 
-func New(repo repository.UsersChannelsRepository, channelID int) Channel {
+func New(repo repository.UsersChannelsRepository, channelID int, usersRepo repository.Repository) Channel {
 	return &channel{
 		messageQueue:      make(chan *message.BroadcastedMessage),
 		joinChannel:       make(chan Client),
@@ -63,6 +65,7 @@ func New(repo repository.UsersChannelsRepository, channelID int) Channel {
 		tracer:            trace.New(os.Stdout),
 		usersChannelsRepo: repo,
 		channelID:         channelID,
+		usersRepo:         usersRepo,
 	}
 }
 
@@ -72,12 +75,13 @@ func (c *channel) Run() {
 		case client := <-c.joinChannel:
 			userID := client.GetUserID()
 			err := c.usersChannelsRepo.AddOrUpdateUserToChannel(userID, c.channelID)
-			if err != nil {
-				log.Println(err)
-				return
+			if err == nil {
+				c.clients[client] = true
+				c.tracer.Trace("New client joined")
+			} else {
+				log.Println("Channel.Run -for.select.case .joinChannel: ", err)
+				client.CloseSocket()
 			}
-			c.clients[client] = true
-			c.tracer.Trace("New client joined")
 		case client := <-c.leaveChannel:
 			//leaving
 			delete(c.clients, client)
@@ -125,7 +129,7 @@ func (c *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Println("Channel.ServeHTTP:", "No user ID found in the request header")
 		return
 	}
-	_, err := strconv.Atoi(userIDstr)
+	userID, err := strconv.Atoi(userIDstr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Println("Channel.ServeHTTP:", "Invalid user ID passed in header")
@@ -137,11 +141,15 @@ func (c *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Println("Channel.ServeHTTP:", err)
 		return
 	}
-
+	user, err := c.usersRepo.GetOne(userID)
+	if err != nil {
+		log.Println("Canot find user with ID:", userID, "psql err:", err)
+	}
 	client := &client{
 		socket:         socket,
 		forwardMessage: make(chan *message.BroadcastedMessage, messageBufferSize),
 		channel:        c,
+		user:           user.(model.User),
 	}
 	c.joinChannel <- client
 	defer func() {

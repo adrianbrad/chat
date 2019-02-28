@@ -2,7 +2,6 @@ package repository
 
 import (
 	"database/sql"
-	"time"
 )
 
 type UsersChannelsRepository interface {
@@ -22,8 +21,6 @@ func NewDbUsersChannelsRepository(database *sql.DB) UsersChannelsRepository {
 }
 
 func (r usersChannelsRepository) AddOrUpdateUserToChannel(userID int, channelID int) (err error) {
-	t := time.Now()
-	ts := t.Format("2006-01-02 15:04:05")
-	_, err = r.db.Exec(r.addOrUpdateUserChannelQuery, userID, channelID, ts)
+	_, err = r.db.Exec(r.addOrUpdateUserChannelQuery, userID, channelID, "now()")
 	return err
 }

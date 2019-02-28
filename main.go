@@ -58,7 +58,7 @@ func main() {
 	userRepository = repository.NewDbUsersRepository(db)
 
 	usersChannelsRepository = repository.NewDbUsersChannelsRepository(db)
-	channel := channel.New(usersChannelsRepository, 1)
+	channel := channel.New(usersChannelsRepository, 1, userRepository)
 	go channel.Run() //get the channel going in another thread
 	//the chatting operation occur in the background
 	//the main goroutine is running the web server
@@ -105,7 +105,7 @@ func validChannel(next http.Handler) http.Handler {
 
 func authRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println("auth requests")
+		// log.Println("auth requests")
 		// TODO
 		next.ServeHTTP(w, r)
 	})

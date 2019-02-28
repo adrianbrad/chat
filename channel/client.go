@@ -14,6 +14,7 @@ type Client interface {
 	Write()
 	ForwardMessage() chan *message.BroadcastedMessage
 	GetUserID() int
+	CloseSocket()
 }
 
 type client struct {
@@ -81,4 +82,8 @@ func (client *client) ForwardMessage() chan *message.BroadcastedMessage {
 
 func (client *client) GetUserID() int {
 	return client.user.ID
+}
+
+func (client *client) CloseSocket() {
+	client.socket.Close()
 }

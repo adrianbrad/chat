@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -116,6 +117,23 @@ func TestClientsSendMessages(t *testing.T) {
 	assertEqual(t, cls[3].messages[1].UserID, 5)
 	assertEqual(t, cls[4].messages[1].Message, "Sending to room 1 and 2")
 	assertEqual(t, cls[4].messages[1].UserID, 5)
+}
+
+func TestClientUnsuccessfullySendMessage(t *testing.T) {
+	ch := initChannelWithMocks()
+	go ch.Run()
+
+	cls := initMockClients(2, ch)
+
+	cls[0].setNextMessageToReadAndRead(cls[0].joinRoomsMessage(1))
+	cls[1].setNextMessageToReadAndRead(cls[1].joinRoomsMessage(2))
+
+	cls[0].setNextMessageToReadAndRead(cls[0].sendMessageToRooms("Sending to room 1 and 2 and 7(inexistent)", 1, 2, 7))
+	time.Sleep(100 * time.Millisecond)
+	for _, client := range cls {
+		fmt.Println(len(client.messages))
+		//TODO client should receive an error that the room does not exist
+	}
 }
 
 func initChannelWithMocks() *channel {

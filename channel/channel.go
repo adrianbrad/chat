@@ -96,7 +96,11 @@ func (c *channel) Run() {
 			c.tracer.Trace("Message received: ", msg)
 			//TODO broadcast message to specified rooms
 			//for clients in rooms[roomID] -> client.ForwardMessage() <- msg
-			c.broadcastMessage(c.messageProcessor.ProcessMessage(msg))
+			err := c.broadcastMessage(c.messageProcessor.ProcessMessage(msg))
+			if err != nil {
+				// clientRoom.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
+				// ! MAKE CHANNEL OF TYPE ClientRooms
+			}
 		case clientRoom := <-c.joinRoom:
 			err := c.addClientToRoom(clientRoom)
 			if err != nil {
@@ -160,7 +164,7 @@ func (c *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	client.Read()     //we keep reading messages in this thread, thus blocking operations and keeping the connection alive
 }
 
-func (c channel) broadcastMessage(bm *message.BroadcastedMessage) {
+func (c channel) broadcastMessage(bm *message.BroadcastedMessage) (err error) {
 	if len(bm.RoomIDs) == 1 && bm.RoomIDs[0] == -1 { //broadcast to all rooms
 		for _, room := range c.rooms {
 			for client := range room {
@@ -174,9 +178,12 @@ func (c channel) broadcastMessage(bm *message.BroadcastedMessage) {
 			for clientInRoom := range room {
 				clientInRoom.ForwardMessage() <- bm
 			}
+		} else {
+			err = fmt.Errorf("Room does not exist %d", roomID)
 		}
 	}
 	c.tracer.Trace(" -- sent to client")
+	return
 }
 
 func (c *channel) addClientToRoom(clientRoom ClientRooms) (err error) {
@@ -194,11 +201,11 @@ func (c *channel) addClientToRoom(clientRoom ClientRooms) (err error) {
 	return
 }
 
-func (c *channel) removeClientFromRoom(client Client, roomID int) error {
+func (c *channel) removeClientFromRoom(client Client, roomID int) (err error) {
 	if room, ok := c.rooms[roomID]; ok {
 		delete(room, client)
 	} else {
-		log.Println("Room does not exist")
+		err = fmt.Errorf("Room does not exist")
 	}
 	return nil
 }

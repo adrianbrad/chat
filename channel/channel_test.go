@@ -9,7 +9,6 @@ import (
 
 	"github.com/adrianbrad/chat/messageProcessor"
 
-	"github.com/adrianbrad/chat/message"
 	"github.com/adrianbrad/chat/trace"
 )
 
@@ -50,6 +49,67 @@ func TestClientsSuccesfullyJoinRooms(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	assertEqual(t, len(ch.rooms[1]), 3)
 	assertEqual(t, len(ch.rooms[2]), 1)
+}
+
+func TestClientsSuccesfullyLeaveRooms(t *testing.T) {
+	ch := initChannelWithMocks()
+	go ch.Run()
+	cls := initMockClients(3, ch)
+
+	for _, client := range cls {
+		client.setNextMessageToReadAndRead(client.joinRoomsMessage(1, 2, 3))
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	assertEqual(t, len(ch.rooms[1]), 3)
+	assertEqual(t, len(ch.rooms[2]), 3)
+	assertEqual(t, len(ch.rooms[3]), 3)
+
+	cls[0].setNextMessageToReadAndRead(cls[0].leaveRoomsMessage(1))
+	time.Sleep(100 * time.Millisecond)
+	assertEqual(t, len(ch.rooms[1]), 2)
+
+	cls[1].setNextMessageToReadAndRead(cls[1].leaveRoomsMessage(1, 2))
+	time.Sleep(100 * time.Millisecond)
+	assertEqual(t, len(ch.rooms[1]), 1)
+	assertEqual(t, len(ch.rooms[2]), 2)
+
+	cls[2].setNextMessageToReadAndRead(cls[2].leaveRoomsMessage(1, 2, 3))
+	time.Sleep(100 * time.Millisecond)
+	assertEqual(t, len(ch.rooms[1]), 0)
+	assertEqual(t, len(ch.rooms[2]), 1)
+	assertEqual(t, len(ch.rooms[3]), 2)
+}
+
+func TestClientsUnsuccesfullyLeaveRooms(t *testing.T) {
+	ch := initChannelWithMocks()
+	go ch.Run()
+	cls := initMockClients(3, ch)
+
+	for _, client := range cls {
+		client.setNextMessageToReadAndRead(client.joinRoomsMessage(1, 2))
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	assertEqual(t, len(ch.rooms[1]), 3)
+	assertEqual(t, len(ch.rooms[2]), 3)
+	assertEqual(t, len(ch.rooms[3]), 0)
+
+	cls[2].setNextMessageToReadAndRead(cls[2].leaveRoomsMessage(712, 8312))
+	time.Sleep(50 * time.Millisecond)
+	assertEqual(t, len(ch.rooms[1]), 3)
+	assertEqual(t, len(ch.rooms[2]), 3)
+	assertEqual(t, len(ch.rooms[3]), 0)
+
+	assertEqual(t, cls[2].messages[0].Message, fmt.Sprintf("Room does not exist %d\nRoom does not exist %d\n", 712, 8312))
+
+	cls[2].clearMessages()
+	cls[2].setNextMessageToReadAndRead(cls[2].leaveRoomsMessage(1, 3))
+	time.Sleep(50 * time.Millisecond)
+	assertEqual(t, len(ch.rooms[1]), 2)
+	assertEqual(t, len(ch.rooms[2]), 3)
+	assertEqual(t, len(ch.rooms[3]), 0)
+	assertEqual(t, cls[2].messages[0].Message, fmt.Sprintf("Client is not in the room %d\n", 3))
 }
 
 func TestClientsFailToJoinRooms(t *testing.T) {
@@ -127,19 +187,20 @@ func TestClientUnsuccessfullySendMessage(t *testing.T) {
 
 	cls[0].setNextMessageToReadAndRead(cls[0].joinRoomsMessage(1))
 	cls[1].setNextMessageToReadAndRead(cls[1].joinRoomsMessage(2))
+	cls[1].setNextMessageToReadAndRead(cls[1].joinRoomsMessage(1))
 
 	cls[0].setNextMessageToReadAndRead(cls[0].sendMessageToRooms("Sending to room 1 and 2 and 7(inexistent)", 1, 2, 7))
 	time.Sleep(100 * time.Millisecond)
-	for _, client := range cls {
-		fmt.Println(len(client.messages))
-		//TODO client should receive an error that the room does not exist
-	}
+	assertEqual(t, len(cls[1].messages), 2) //two messages as he is in room 1 and 2
+	assertEqual(t, len(cls[0].messages), 2) //two messages: one received by being in room 1 and one error message
+	assertEqual(t, cls[0].messages[1].Action, "error")
+	assertEqual(t, cls[0].messages[1].Message, "Room does not exist 7")
 }
 
 func initChannelWithMocks() *channel {
 	channelID := 1
 	return &channel{
-		messageQueue:      make(chan *message.ReceivedMessage),
+		messageQueue:      make(chan ClientMessage),
 		joinChannel:       make(chan Client),
 		leaveChannel:      make(chan Client),
 		joinRoom:          make(chan ClientRooms),

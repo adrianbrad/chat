@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/adrianbrad/chat/messageProcessor"
 
@@ -27,7 +28,7 @@ type Channel interface {
 type channel struct {
 	//receivedMessages is a channel that holds incoming message
 	//incoming messages should be broadcasted to the other channels
-	messageQueue chan *message.ReceivedMessage
+	messageQueue chan ClientMessage
 	//joinChannel is a channel for clients wishing to joinChannel the channel
 	joinChannel chan Client
 	//leaveChannel is a channel for clients withing to leaveChannel the channel
@@ -55,7 +56,7 @@ type channel struct {
 
 func New(usersChannelsRepo repository.UsersChannelsRepository, channelID int, usersRepo repository.Repository, messageProcessor messageProcessor.MessageProcessor, roomIDs []int) Channel {
 	c := &channel{
-		messageQueue:      make(chan *message.ReceivedMessage),
+		messageQueue:      make(chan ClientMessage),
 		joinChannel:       make(chan Client),
 		leaveChannel:      make(chan Client),
 		joinRoom:          make(chan ClientRooms),
@@ -92,14 +93,13 @@ func (c *channel) Run() {
 			delete(c.clients, client)
 			close(client.ForwardMessage())
 			c.tracer.Trace("Client left")
-		case msg := <-c.messageQueue:
-			c.tracer.Trace("Message received: ", msg)
+		case clientMessage := <-c.messageQueue:
+			c.tracer.Trace("Message received: ", clientMessage.Message)
 			//TODO broadcast message to specified rooms
 			//for clients in rooms[roomID] -> client.ForwardMessage() <- msg
-			err := c.broadcastMessage(c.messageProcessor.ProcessMessage(msg))
+			err := c.broadcastMessage(c.messageProcessor.ProcessMessage(clientMessage.Message))
 			if err != nil {
-				// clientRoom.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
-				// ! MAKE CHANNEL OF TYPE ClientRooms
+				clientMessage.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
 			}
 		case clientRoom := <-c.joinRoom:
 			err := c.addClientToRoom(clientRoom)
@@ -107,7 +107,10 @@ func (c *channel) Run() {
 				clientRoom.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
 			}
 		case clientRoom := <-c.leaveRoom:
-			log.Println(clientRoom)
+			err := c.removeClientFromRoom(clientRoom)
+			if err != nil {
+				clientRoom.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
+			}
 		}
 	}
 }
@@ -165,6 +168,9 @@ func (c *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (c channel) broadcastMessage(bm *message.BroadcastedMessage) (err error) {
+	var errorMessage strings.Builder
+	errorMessage.WriteString("Room does not exist ")
+
 	if len(bm.RoomIDs) == 1 && bm.RoomIDs[0] == -1 { //broadcast to all rooms
 		for _, room := range c.rooms {
 			for client := range room {
@@ -179,7 +185,8 @@ func (c channel) broadcastMessage(bm *message.BroadcastedMessage) (err error) {
 				clientInRoom.ForwardMessage() <- bm
 			}
 		} else {
-			err = fmt.Errorf("Room does not exist %d", roomID)
+			errorMessage.WriteString(strconv.Itoa(roomID))
+			err = fmt.Errorf(errorMessage.String())
 		}
 	}
 	c.tracer.Trace(" -- sent to client")
@@ -187,27 +194,42 @@ func (c channel) broadcastMessage(bm *message.BroadcastedMessage) (err error) {
 }
 
 func (c *channel) addClientToRoom(clientRoom ClientRooms) (err error) {
+	var errorMessage strings.Builder
+
 	for _, roomID := range clientRoom.Rooms {
 		if room, ok := c.rooms[roomID]; ok {
 			if _, clientAlreadyInRoom := room[clientRoom.Client]; !clientAlreadyInRoom {
 				room[clientRoom.Client] = true
 			} else {
-				err = fmt.Errorf("Client already in room")
+				_, _ = fmt.Fprintf(&errorMessage, "Client already in room %d\n", roomID)
+				err = fmt.Errorf("%s%s", err.Error(), errorMessage.String())
 			}
 		} else {
-			err = fmt.Errorf("Room does not exist %d", roomID)
+			_, _ = fmt.Fprintf(&errorMessage, "Room does not exist %d", roomID)
+			err = fmt.Errorf("%s%s", err.Error(), errorMessage.String())
 		}
 	}
 	return
 }
 
-func (c *channel) removeClientFromRoom(client Client, roomID int) (err error) {
-	if room, ok := c.rooms[roomID]; ok {
-		delete(room, client)
-	} else {
-		err = fmt.Errorf("Room does not exist")
+func (c *channel) removeClientFromRoom(clientRoom ClientRooms) (err error) {
+	var errorMessage strings.Builder
+
+	for _, roomID := range clientRoom.Rooms {
+		if room, ok := c.rooms[roomID]; ok {
+			if _, clientInRoom := room[clientRoom.Client]; clientInRoom {
+				delete(room, clientRoom.Client)
+			} else {
+				_, _ = fmt.Fprintf(&errorMessage, "Client is not in the room %d\n", roomID)
+			}
+		} else {
+			_, _ = fmt.Fprintf(&errorMessage, "Room does not exist %d\n", roomID)
+		}
 	}
-	return nil
+	if errorMessage.String() != "" {
+		err = fmt.Errorf(errorMessage.String())
+	}
+	return
 }
 
 func (c channel) JoinRoom() chan ClientRooms {

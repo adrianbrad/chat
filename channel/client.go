@@ -23,7 +23,7 @@ type client struct {
 	//forwardMessage is the buffered channel on which messages are queued ready to be forwarded to the user browser
 	forwardMessage chan *message.BroadcastedMessage
 	//channel is the channel this client is chatting in, used to broadcast messages to everyone else in the channel
-	channelMessageQueue chan *message.ReceivedMessage
+	channelMessageQueue chan ClientMessage
 	//join
 	join chan ClientRooms
 	//leave
@@ -32,7 +32,7 @@ type client struct {
 	user model.User
 }
 
-func NewClient(socket *websocket.Conn, forwardMessage chan *message.BroadcastedMessage, incomingMessage chan *message.ReceivedMessage, user model.User, join chan ClientRooms, leave chan ClientRooms) Client {
+func NewClient(socket *websocket.Conn, forwardMessage chan *message.BroadcastedMessage, incomingMessage chan ClientMessage, user model.User, join chan ClientRooms, leave chan ClientRooms) Client {
 	return &client{
 		socket:              socket,
 		forwardMessage:      forwardMessage,
@@ -63,7 +63,7 @@ func (client *client) Read() {
 		case "leave":
 			client.leave <- ClientRooms{client, receivedMessage.RoomIDs}
 		case "message":
-			client.channelMessageQueue <- receivedMessage
+			client.channelMessageQueue <- ClientMessage{client, receivedMessage}
 		}
 	}
 }

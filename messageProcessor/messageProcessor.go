@@ -26,6 +26,7 @@ func (mp messageProcessor) ProcessMessage(rm *message.ReceivedMessage) *message.
 
 func (mp messageProcessor) ErrorMessage(err string) *message.BroadcastedMessage {
 	return &message.BroadcastedMessage{
-		Action: err,
+		Action:  "error",
+		Message: err,
 	}
 }

@@ -62,13 +62,13 @@ type clientMock struct {
 	userID              int
 	join                chan ClientRooms
 	leave               chan ClientRooms
-	channelMessageQueue chan *message.ReceivedMessage
+	channelMessageQueue chan ClientMessage
 	forwardMessage      chan *message.BroadcastedMessage
 	nextMessageToRead   *message.ReceivedMessage
 	messages            []*message.BroadcastedMessage
 }
 
-func NewClientMock(userID int, join chan ClientRooms, leave chan ClientRooms, channelMessageQueue chan *message.ReceivedMessage) *clientMock {
+func NewClientMock(userID int, join chan ClientRooms, leave chan ClientRooms, channelMessageQueue chan ClientMessage) *clientMock {
 	c := &clientMock{
 		userID:              userID,
 		join:                join,
@@ -93,7 +93,7 @@ func (c *clientMock) Read() {
 			Rooms:  c.nextMessageToRead.RoomIDs,
 		}
 	case "message":
-		c.channelMessageQueue <- c.nextMessageToRead
+		c.channelMessageQueue <- ClientMessage{c, c.nextMessageToRead}
 	}
 }
 

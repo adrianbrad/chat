@@ -65,6 +65,11 @@ func (r dbPermissionsRepository) GetAll() (permissions []interface{}) {
 	return permissions
 }
 
+func (r dbPermissionsRepository) GetAllWhere(cloumn string, value int, limit int) []interface{} {
+
+	return nil
+}
+
 func (r dbPermissionsRepository) Create(permissionI interface{}) (id int, err error) {
 	permission := permissionI.(model.Permission)
 	if err := r.db.QueryRow(

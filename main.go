@@ -23,6 +23,7 @@ import (
 var db *sql.DB
 var userRepository repository.Repository
 var usersChannelsRepository repository.UsersChannelsRepository
+var messagesRepository repository.Repository
 
 type templateHandler struct {
 	once     sync.Once
@@ -58,9 +59,9 @@ func main() {
 	// * removing all previous subscribtions as there is nio chance to recover that in case of an unexpected application shutdown
 	db.Exec("TRUNCATE TABLE Users_Rooms")
 	userRepository = repository.NewDbUsersRepository(db)
-
+	messagesRepository = repository.NewDbMessagesRepository(db)
 	usersChannelsRepository = repository.NewDbUsersChannelsRepository(db)
-	channel := channel.New(usersChannelsRepository, 1, userRepository, messageProcessor.New(), []int{1, 2})
+	channel := channel.New(usersChannelsRepository, 1, userRepository, messageProcessor.New(), []int{1, 2}, messagesRepository)
 	go channel.Run() //get the channel going in another thread
 	//the chatting operation occur in the background
 	//the main goroutine is running the web server

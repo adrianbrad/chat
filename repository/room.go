@@ -67,6 +67,11 @@ func (r dbRoomsRepository) GetAll() (rooms []interface{}) {
 	return rooms
 }
 
+func (r dbRoomsRepository) GetAllWhere(cloumn string, value int, limit int) []interface{} {
+
+	return nil
+}
+
 func (r dbRoomsRepository) Create(roomI interface{}) (id int, err error) {
 	room := roomI.(model.Room)
 	if err := r.db.QueryRow(r.createQuery, room.Name, room.Description, room.ChannelID).Scan(&id); err != nil {

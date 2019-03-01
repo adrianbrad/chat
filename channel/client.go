@@ -2,6 +2,7 @@ package channel
 
 import (
 	"log"
+	"strconv"
 
 	"github.com/adrianbrad/chat/message"
 	"github.com/adrianbrad/chat/model"
@@ -25,14 +26,18 @@ type client struct {
 	//channel is the channel this client is chatting in, used to broadcast messages to everyone else in the channel
 	channelMessageQueue chan ClientMessage
 	//join
-	join chan ClientRooms
+	join chan ClientJoinsRooms
 	//leave
 	leave chan ClientRooms
 	//userData is used for storing information about the user
 	user model.User
 }
 
-func NewClient(socket *websocket.Conn, forwardMessage chan *message.BroadcastedMessage, incomingMessage chan ClientMessage, user model.User, join chan ClientRooms, leave chan ClientRooms) Client {
+func NewClient(
+	socket *websocket.Conn,
+	forwardMessage chan *message.BroadcastedMessage,
+	incomingMessage chan ClientMessage, user model.User,
+	join chan ClientJoinsRooms, leave chan ClientRooms) Client {
 	return &client{
 		socket:              socket,
 		forwardMessage:      forwardMessage,
@@ -58,8 +63,16 @@ func (client *client) Read() {
 
 		switch receivedMessage.Action {
 		case "join":
-			client.join <- ClientRooms{client, receivedMessage.RoomIDs}
-			// client.ForwardMessage() <- client.sendHistory(receivedMessage)
+			historyLimit := 30
+			if givenHistoryLimit, err := strconv.Atoi(receivedMessage.Content); err == nil {
+				historyLimit = givenHistoryLimit
+			}
+
+			client.join <- ClientJoinsRooms{
+				ClientRooms: ClientRooms{
+					Client: client,
+					Rooms:  receivedMessage.RoomIDs},
+				HistoryLimit: historyLimit}
 		case "leave":
 			client.leave <- ClientRooms{client, receivedMessage.RoomIDs}
 		case "message":

@@ -2,6 +2,7 @@ package channel
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/adrianbrad/chat/message"
 	"github.com/adrianbrad/chat/repository"
@@ -9,7 +10,7 @@ import (
 
 type usersRepoMock struct{}
 
-func NewUsersRepoMockMock() repository.Repository {
+func NewUsersRepoMock() repository.Repository {
 	return &usersRepoMock{}
 }
 
@@ -25,6 +26,10 @@ func (r usersRepoMock) GetAll() []interface{} {
 	return nil
 }
 
+func (r usersRepoMock) GetAllWhere(column string, value int, limit int) []interface{} {
+	return nil
+}
+
 func (r usersRepoMock) Create(interface{}) (int, error) {
 	return 0, nil
 }
@@ -32,6 +37,7 @@ func (r usersRepoMock) Create(interface{}) (int, error) {
 type usersChannelsRepoMock struct {
 	users    map[int]bool
 	channels map[int]bool
+	messages map[int][]string
 }
 
 func NewUSersChannelsRepoMock() repository.UsersChannelsRepository {
@@ -58,9 +64,13 @@ func (r usersChannelsRepoMock) AddOrUpdateUserToChannel(userID, channelID int) e
 	return nil
 }
 
+// type messagesRepoMock() repository.Repository{
+// 	messages []model.Message
+// }
+
 type clientMock struct {
 	userID              int
-	join                chan ClientRooms
+	join                chan ClientJoinsRooms
 	leave               chan ClientRooms
 	channelMessageQueue chan ClientMessage
 	forwardMessage      chan *message.BroadcastedMessage
@@ -68,7 +78,7 @@ type clientMock struct {
 	messages            []*message.BroadcastedMessage
 }
 
-func NewClientMock(userID int, join chan ClientRooms, leave chan ClientRooms, channelMessageQueue chan ClientMessage) *clientMock {
+func NewClientMock(userID int, join chan ClientJoinsRooms, leave chan ClientRooms, channelMessageQueue chan ClientMessage) *clientMock {
 	c := &clientMock{
 		userID:              userID,
 		join:                join,
@@ -83,10 +93,17 @@ func NewClientMock(userID int, join chan ClientRooms, leave chan ClientRooms, ch
 func (c *clientMock) Read() {
 	switch c.nextMessageToRead.Action {
 	case "join":
-		c.join <- ClientRooms{
-			Client: c,
-			Rooms:  c.nextMessageToRead.RoomIDs,
+		historyLimit := 30
+		if givenHistoryLimit, err := strconv.Atoi(c.nextMessageToRead.Content); err == nil {
+			historyLimit = givenHistoryLimit
 		}
+
+		c.join <- ClientJoinsRooms{
+			ClientRooms: ClientRooms{
+				Client: c,
+				Rooms:  c.nextMessageToRead.RoomIDs,
+			},
+			HistoryLimit: historyLimit}
 	case "leave":
 		c.leave <- ClientRooms{
 			Client: c,

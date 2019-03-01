@@ -65,6 +65,11 @@ func (r dbRolesRepository) GetAll() (roles []interface{}) {
 	return roles
 }
 
+func (r dbRolesRepository) GetAllWhere(cloumn string, value int, limit int) []interface{} {
+
+	return nil
+}
+
 func (r dbRolesRepository) Create(roleI interface{}) (id int, err error) {
 	role := roleI.(model.Role)
 	if err := r.db.QueryRow(

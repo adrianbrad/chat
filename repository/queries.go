@@ -25,6 +25,18 @@ func getAllQuery(entity string, fields ...string) string {
 		`, queryFieldsBuilder(false, fields), entity))
 }
 
+func getAllWhereQuery(entity string, column string, orderBy string, method string, fields ...string) string {
+	return removeEscapeChar(
+		fmt.Sprintf(`
+		SELECT
+			%s
+		FROM "%ss"
+		WHERE "%s"=$1
+		ORDER by "%s" %s
+		LIMIT $2
+		`, queryFieldsBuilder(false, fields), entity, column, orderBy, method))
+}
+
 func getOneQuery(entity string, fields ...string) string {
 	return removeEscapeChar(
 		fmt.Sprintf(`
@@ -79,6 +91,9 @@ func queryValuesPlaceholder(valuesCount int, startFrom int) string {
 }
 
 func queryFieldsBuilder(startWithComma bool, fields []string) string {
+	if len(fields) == 1 && fields[0] == "*" {
+		return "*"
+	}
 	var b strings.Builder
 	if startWithComma {
 		b.WriteString(", ")

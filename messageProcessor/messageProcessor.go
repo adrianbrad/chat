@@ -7,6 +7,7 @@ import (
 type MessageProcessor interface {
 	ProcessMessage(*message.ReceivedMessage) *message.BroadcastedMessage
 	ErrorMessage(string) *message.BroadcastedMessage
+	HistoryMessage(interface{}) *message.BroadcastedMessage
 }
 
 type messageProcessor struct {
@@ -20,13 +21,17 @@ func (mp messageProcessor) ProcessMessage(rm *message.ReceivedMessage) *message.
 	return &message.BroadcastedMessage{
 		RoomIDs: rm.RoomIDs,
 		UserID:  rm.UserID,
-		Message: rm.Content,
+		Content: rm.Content,
 	}
 }
 
 func (mp messageProcessor) ErrorMessage(err string) *message.BroadcastedMessage {
 	return &message.BroadcastedMessage{
 		Action:  "error",
-		Message: err,
+		Content: err,
 	}
+}
+
+func (mp messageProcessor) HistoryMessage(history interface{}) *message.BroadcastedMessage {
+	return nil
 }

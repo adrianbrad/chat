@@ -79,3 +79,8 @@ func (r dbChannelsRepository) CheckIfExists(channelID int) (exists bool) {
 	_ = r.db.QueryRow(r.checkIfExistsQuery, channelID).Scan(&exists)
 	return exists
 }
+
+func (r dbChannelsRepository) GetAllWhere(cloumn string, value int, limit int) []interface{} {
+
+	return nil
+}

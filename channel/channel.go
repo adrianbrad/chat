@@ -21,53 +21,65 @@ import (
 type Channel interface {
 	Run()
 	ServeHTTP(http.ResponseWriter, *http.Request)
-	JoinRoom() chan ClientRooms
-	LeaveRoom() chan ClientRooms
 }
 
 type channel struct {
-	//receivedMessages is a channel that holds incoming message
-	//incoming messages should be broadcasted to the other channels
+
+	//channel ID holds the current channel id
+	channelID int
+
+	//messageQueue is a channel that holds incoming message
+	//incoming messages should be broadcasted to the other clients
 	messageQueue chan ClientMessage
 	//joinChannel is a channel for clients wishing to joinChannel the channel
 	joinChannel chan Client
 	//leaveChannel is a channel for clients withing to leaveChannel the channel
 	leaveChannel chan Client
 	//joinRoom is a channel for wsConnections wishing to subscribe to a room messages
-	joinRoom chan ClientRooms
+	joinRoom chan ClientJoinsRooms
 	//leaveRoom is a channel for wsConnections wishing to unsubscribe from a room messages
 	leaveRoom chan ClientRooms
 	// * the joinChannel, leaveChannel, joinRoom and leaveRoom channels exist simply to allow us to safely add and remove clients from the clients map
 
 	//clients holds all current clients in this channel
 	clients map[Client]bool
-	//tracer will receive trace information of activity in the channel
-	tracer trace.Tracer
+	//rooms hold references for all the connections in a room RoomID -> A client with a WebsocketConn
+	rooms map[int]map[Client]bool
+
 	//repo persists the changes made to the channel
 	usersChannelsRepo repository.UsersChannelsRepository
 	usersRepo         repository.Repository
-	//channel ID holds the current channel id
-	channelID int
-	//rooms hold references for all the connections in a room RoomID -> A client with a WebsocketConn
-	rooms map[int]map[Client]bool
+	messagesRepo      repository.Repository
+
 	//messageProcessor is used for handling incoming messages transforming them to broadcasted messages or doing the actions requested by the message
 	messageProcessor messageProcessor.MessageProcessor
+
+	//tracer will receive trace information of activity in the channel
+	tracer trace.Tracer
 }
 
-func New(usersChannelsRepo repository.UsersChannelsRepository, channelID int, usersRepo repository.Repository, messageProcessor messageProcessor.MessageProcessor, roomIDs []int) Channel {
+func New(
+	usersChannelsRepo repository.UsersChannelsRepository,
+	channelID int,
+	usersRepo repository.Repository,
+	messageProcessor messageProcessor.MessageProcessor,
+	roomIDs []int,
+	messagesRepo repository.Repository) Channel {
 	c := &channel{
-		messageQueue:      make(chan ClientMessage),
-		joinChannel:       make(chan Client),
-		leaveChannel:      make(chan Client),
-		joinRoom:          make(chan ClientRooms),
-		leaveRoom:         make(chan ClientRooms),
-		clients:           make(map[Client]bool),
-		tracer:            trace.New(os.Stdout),
+		messageQueue: make(chan ClientMessage),
+		joinChannel:  make(chan Client),
+		leaveChannel: make(chan Client),
+		joinRoom:     make(chan ClientJoinsRooms),
+		leaveRoom:    make(chan ClientRooms),
+		clients:      make(map[Client]bool),
+		tracer:       trace.New(os.Stdout),
+		rooms:        make(map[int]map[Client]bool),
+
 		usersChannelsRepo: usersChannelsRepo,
 		channelID:         channelID,
 		usersRepo:         usersRepo,
+		messagesRepo:      messagesRepo,
 		messageProcessor:  messageProcessor,
-		rooms:             make(map[int]map[Client]bool),
 	}
 	for _, roomID := range roomIDs {
 		c.rooms[roomID] = make(map[Client]bool)
@@ -83,28 +95,26 @@ func (c *channel) Run() {
 			err := c.usersChannelsRepo.AddOrUpdateUserToChannel(userID, c.channelID)
 			if err == nil {
 				c.clients[client] = true
-				c.tracer.Trace("New client joined")
 			} else {
 				log.Println("Channel.Run -for.select.case.joinChannel: ", err)
 				client.Close()
 			}
 		case client := <-c.leaveChannel:
-			//leaving
 			delete(c.clients, client)
 			close(client.ForwardMessage())
-			c.tracer.Trace("Client left")
 		case clientMessage := <-c.messageQueue:
-			c.tracer.Trace("Message received: ", clientMessage.Message)
-			//TODO broadcast message to specified rooms
-			//for clients in rooms[roomID] -> client.ForwardMessage() <- msg
 			err := c.broadcastMessage(c.messageProcessor.ProcessMessage(clientMessage.Message))
 			if err != nil {
 				clientMessage.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
 			}
 		case clientRoom := <-c.joinRoom:
 			err := c.addClientToRoom(clientRoom)
-			if err != nil {
+			if err == nil {
+				history := c.getHistory(clientRoom.Rooms, clientRoom.HistoryLimit)
+				clientRoom.Client.ForwardMessage() <- c.messageProcessor.HistoryMessage(history)
+			} else {
 				clientRoom.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
+
 			}
 		case clientRoom := <-c.leaveRoom:
 			err := c.removeClientFromRoom(clientRoom)
@@ -169,7 +179,6 @@ func (c *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func (c channel) broadcastMessage(bm *message.BroadcastedMessage) (err error) {
 	var errorMessage strings.Builder
-	errorMessage.WriteString("Room does not exist ")
 
 	if len(bm.RoomIDs) == 1 && bm.RoomIDs[0] == -1 { //broadcast to all rooms
 		for _, room := range c.rooms {
@@ -177,23 +186,25 @@ func (c channel) broadcastMessage(bm *message.BroadcastedMessage) (err error) {
 				client.ForwardMessage() <- bm
 			}
 		}
-	}
-
-	for _, roomID := range bm.RoomIDs {
-		if room, ok := c.rooms[roomID]; ok {
-			for clientInRoom := range room {
-				clientInRoom.ForwardMessage() <- bm
+	} else {
+		for _, roomID := range bm.RoomIDs {
+			if room, ok := c.rooms[roomID]; ok {
+				for clientInRoom := range room {
+					clientInRoom.ForwardMessage() <- bm
+				}
+			} else {
+				_, _ = fmt.Fprintf(&errorMessage, "Room does not exist %d", roomID)
 			}
-		} else {
-			errorMessage.WriteString(strconv.Itoa(roomID))
-			err = fmt.Errorf(errorMessage.String())
 		}
 	}
-	c.tracer.Trace(" -- sent to client")
+
+	if errorMessage.String() != "" {
+		err = fmt.Errorf(errorMessage.String())
+	}
 	return
 }
 
-func (c *channel) addClientToRoom(clientRoom ClientRooms) (err error) {
+func (c *channel) addClientToRoom(clientRoom ClientJoinsRooms) (err error) {
 	var errorMessage strings.Builder
 
 	for _, roomID := range clientRoom.Rooms {
@@ -202,12 +213,13 @@ func (c *channel) addClientToRoom(clientRoom ClientRooms) (err error) {
 				room[clientRoom.Client] = true
 			} else {
 				_, _ = fmt.Fprintf(&errorMessage, "Client already in room %d\n", roomID)
-				err = fmt.Errorf("%s%s", err.Error(), errorMessage.String())
 			}
 		} else {
-			_, _ = fmt.Fprintf(&errorMessage, "Room does not exist %d", roomID)
-			err = fmt.Errorf("%s%s", err.Error(), errorMessage.String())
+			_, _ = fmt.Fprintf(&errorMessage, "Room does not exist %d\n", roomID)
 		}
+	}
+	if errorMessage.String() != "" {
+		err = fmt.Errorf(errorMessage.String())
 	}
 	return
 }
@@ -232,10 +244,11 @@ func (c *channel) removeClientFromRoom(clientRoom ClientRooms) (err error) {
 	return
 }
 
-func (c channel) JoinRoom() chan ClientRooms {
-	return c.joinRoom
-}
+type History [][]interface{}
 
-func (c channel) LeaveRoom() chan ClientRooms {
-	return c.leaveRoom
+func (c channel) getHistory(RoomIDS []int, numberOfMessages int) (history History) {
+	for _, roomID := range RoomIDS {
+		history = append(history, c.messagesRepo.GetAllWhere("RoomID", roomID, numberOfMessages))
+	}
+	return
 }

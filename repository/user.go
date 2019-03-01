@@ -72,6 +72,11 @@ func (r dbUsersRepository) GetAll() (users []interface{}) {
 	return users
 }
 
+func (r dbUsersRepository) GetAllWhere(cloumn string, value int, limit int) []interface{} {
+
+	return nil
+}
+
 func (r dbUsersRepository) Create(userI interface{}) (id int, err error) {
 	user := userI.(model.User)
 	log.Println(r.createQuery)

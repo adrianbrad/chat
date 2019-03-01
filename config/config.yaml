@@ -7,3 +7,7 @@ database:
 
 server:
   port: ":8080"
+
+secret: "D4168195C29E7A32BFDA627627E78"
+
+channel: "dev"

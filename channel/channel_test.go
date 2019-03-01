@@ -27,6 +27,13 @@ func TestClientJoinsChannel(t *testing.T) {
 	assertEqual(t, len(ch.clients), 3) //Client with id 4 is not in the db
 }
 
+func TestReceiveHistoryWhenJoiningRoom(t *testing.T) {
+	ch := initChannelWithMocks()
+	go ch.Run()
+
+	_ = initMockClients(3, ch)
+}
+
 func TestClientsSuccesfullyJoinRooms(t *testing.T) {
 	ch := initChannelWithMocks()
 	go ch.Run()
@@ -101,7 +108,7 @@ func TestClientsUnsuccesfullyLeaveRooms(t *testing.T) {
 	assertEqual(t, len(ch.rooms[2]), 3)
 	assertEqual(t, len(ch.rooms[3]), 0)
 
-	assertEqual(t, cls[2].messages[0].Message, fmt.Sprintf("Room does not exist %d\nRoom does not exist %d\n", 712, 8312))
+	assertEqual(t, cls[2].messages[0].Content, fmt.Sprintf("Room does not exist %d\nRoom does not exist %d\n", 712, 8312))
 
 	cls[2].clearMessages()
 	cls[2].setNextMessageToReadAndRead(cls[2].leaveRoomsMessage(1, 3))
@@ -109,7 +116,7 @@ func TestClientsUnsuccesfullyLeaveRooms(t *testing.T) {
 	assertEqual(t, len(ch.rooms[1]), 2)
 	assertEqual(t, len(ch.rooms[2]), 3)
 	assertEqual(t, len(ch.rooms[3]), 0)
-	assertEqual(t, cls[2].messages[0].Message, fmt.Sprintf("Client is not in the room %d\n", 3))
+	assertEqual(t, cls[2].messages[0].Content, fmt.Sprintf("Client is not in the room %d\n", 3))
 }
 
 func TestClientsFailToJoinRooms(t *testing.T) {
@@ -124,7 +131,7 @@ func TestClientsFailToJoinRooms(t *testing.T) {
 	assertEqual(t, len(ch.rooms[1]), 1)
 	assertEqual(t, len(ch.rooms[2]), 1)
 	assertEqual(t, len(cls[0].messages), 1)
-	assertEqual(t, cls[0].messages[0].Action, "Room does not exist 4")
+	assertEqual(t, cls[0].messages[0].Content, "Room does not exist 4\n")
 
 	//Client wants to join a room but it is already in it
 	cls[0].clearMessages()
@@ -134,7 +141,7 @@ func TestClientsFailToJoinRooms(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	assertEqual(t, len(ch.rooms[1]), 1)
 	assertEqual(t, len(cls[0].messages), 1)
-	assertEqual(t, cls[0].messages[0].Action, "Client already in room")
+	assertEqual(t, cls[0].messages[0].Content, "Client already in room 1\n")
 }
 
 func TestClientsSendMessages(t *testing.T) {
@@ -154,7 +161,7 @@ func TestClientsSendMessages(t *testing.T) {
 
 	for _, client := range cls {
 		assertEqual(t, len(client.messages), 1)
-		assertEqual(t, client.messages[0].Message, "To all")
+		assertEqual(t, client.messages[0].Content, "To all")
 		assertEqual(t, client.messages[0].UserID, 1)
 	}
 
@@ -169,13 +176,13 @@ func TestClientsSendMessages(t *testing.T) {
 	assertEqual(t, len(cls[3].messages), 2)
 	assertEqual(t, len(cls[4].messages), 2)
 
-	assertEqual(t, cls[0].messages[1].Message, "Sending to room 1 and 2")
+	assertEqual(t, cls[0].messages[1].Content, "Sending to room 1 and 2")
 	assertEqual(t, cls[0].messages[1].UserID, 5)
-	assertEqual(t, cls[1].messages[1].Message, "Sending to room 1 and 2")
+	assertEqual(t, cls[1].messages[1].Content, "Sending to room 1 and 2")
 	assertEqual(t, cls[1].messages[1].UserID, 5)
-	assertEqual(t, cls[3].messages[1].Message, "Sending to room 1 and 2")
+	assertEqual(t, cls[3].messages[1].Content, "Sending to room 1 and 2")
 	assertEqual(t, cls[3].messages[1].UserID, 5)
-	assertEqual(t, cls[4].messages[1].Message, "Sending to room 1 and 2")
+	assertEqual(t, cls[4].messages[1].Content, "Sending to room 1 and 2")
 	assertEqual(t, cls[4].messages[1].UserID, 5)
 }
 
@@ -194,7 +201,7 @@ func TestClientUnsuccessfullySendMessage(t *testing.T) {
 	assertEqual(t, len(cls[1].messages), 2) //two messages as he is in room 1 and 2
 	assertEqual(t, len(cls[0].messages), 2) //two messages: one received by being in room 1 and one error message
 	assertEqual(t, cls[0].messages[1].Action, "error")
-	assertEqual(t, cls[0].messages[1].Message, "Room does not exist 7")
+	assertEqual(t, cls[0].messages[1].Content, "Room does not exist 7")
 }
 
 func initChannelWithMocks() *channel {
@@ -203,14 +210,15 @@ func initChannelWithMocks() *channel {
 		messageQueue:      make(chan ClientMessage),
 		joinChannel:       make(chan Client),
 		leaveChannel:      make(chan Client),
-		joinRoom:          make(chan ClientRooms),
+		joinRoom:          make(chan ClientJoinsRooms),
 		leaveRoom:         make(chan ClientRooms),
 		clients:           make(map[Client]bool),
 		tracer:            trace.New(os.Stdout),
 		usersChannelsRepo: NewUSersChannelsRepoMock(),
 		channelID:         channelID,
-		usersRepo:         NewUsersRepoMockMock(),
-		messageProcessor:  messageProcessor.New(),
+		usersRepo:         NewUsersRepoMock(),
+		// messagesRepo: NewMessagesRepo
+		messageProcessor: messageProcessor.New(),
 		rooms: map[int]map[Client]bool{
 			1: map[Client]bool{},
 			2: map[Client]bool{},

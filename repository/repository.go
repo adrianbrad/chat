@@ -5,4 +5,5 @@ type Repository interface {
 	GetAll() []interface{}
 	Create(interface{}) (int, error)
 	CheckIfExists(int) bool
+	GetAllWhere(string, int, int) []interface{}
 }

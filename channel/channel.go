@@ -111,7 +111,7 @@ func (c *channel) Run() {
 			err := c.addClientToRoom(clientRoom)
 			if err == nil {
 				history := c.getHistory(clientRoom.Rooms, clientRoom.HistoryLimit)
-				clientRoom.Client.ForwardMessage() <- c.messageProcessor.HistoryMessage(history)
+				clientRoom.Client.ForwardMessage() <- c.messageProcessor.HistoryMessage(history, clientRoom.Rooms)
 			} else {
 				clientRoom.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
 

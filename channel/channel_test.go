@@ -31,7 +31,12 @@ func TestReceiveHistoryWhenJoiningRoom(t *testing.T) {
 	ch := initChannelWithMocks()
 	go ch.Run()
 
-	_ = initMockClients(3, ch)
+	cls := initMockClients(3, ch)
+
+	cls[0].setNextMessageToReadAndRead(cls[0].joinRoomsMessage(1))
+	time.Sleep(50 * time.Millisecond)
+	// fmt.Println(cls[0].messages)
+
 }
 
 func TestClientsSuccesfullyJoinRooms(t *testing.T) {
@@ -217,8 +222,8 @@ func initChannelWithMocks() *channel {
 		usersChannelsRepo: NewUSersChannelsRepoMock(),
 		channelID:         channelID,
 		usersRepo:         NewUsersRepoMock(),
-		// messagesRepo: NewMessagesRepo
-		messageProcessor: messageProcessor.New(),
+		messagesRepo:      NewMessagesRepoMock(40, 5),
+		messageProcessor:  messageProcessor.New(),
 		rooms: map[int]map[Client]bool{
 			1: map[Client]bool{},
 			2: map[Client]bool{},

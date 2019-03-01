@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/adrianbrad/chat/message"
+	"github.com/adrianbrad/chat/model"
 	"github.com/adrianbrad/chat/repository"
 )
 
@@ -64,9 +65,44 @@ func (r usersChannelsRepoMock) AddOrUpdateUserToChannel(userID, channelID int) e
 	return nil
 }
 
-// type messagesRepoMock() repository.Repository{
-// 	messages []model.Message
-// }
+type messagesRepoMock struct {
+	messages map[int][]model.Message
+}
+
+func NewMessagesRepoMock(nrOfMessages, nrOfRooms int) repository.Repository {
+	messages := make(map[int][]model.Message)
+	for j := 1; j <= nrOfRooms; j++ {
+		for i := 1; i <= nrOfMessages; i++ {
+			messages[j] = append(messages[j], model.Message{
+				UserID:  1,
+				Content: fmt.Sprintf("Room %d message %d", j, i),
+				RoomID:  j,
+			})
+		}
+	}
+	return &messagesRepoMock{messages}
+}
+
+func (r messagesRepoMock) CheckIfExists(id int) bool {
+	return true
+}
+
+func (r messagesRepoMock) GetOne(id int) (interface{}, error) {
+	return nil, nil
+}
+
+func (r messagesRepoMock) GetAll() []interface{} {
+	return nil
+}
+
+func (r messagesRepoMock) GetAllWhere(column string, roomid int, limit int) (history []interface{}) {
+	history = append(history, r.messages[roomid][len(r.messages[roomid])-limit:len(r.messages[roomid])-1])
+	return
+}
+
+func (r messagesRepoMock) Create(interface{}) (int, error) {
+	return 0, nil
+}
 
 type clientMock struct {
 	userID              int

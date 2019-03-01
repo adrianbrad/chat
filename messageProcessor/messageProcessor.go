@@ -1,13 +1,15 @@
 package messageProcessor
 
 import (
+	"fmt"
+
 	"github.com/adrianbrad/chat/message"
 )
 
 type MessageProcessor interface {
 	ProcessMessage(*message.ReceivedMessage) *message.BroadcastedMessage
 	ErrorMessage(string) *message.BroadcastedMessage
-	HistoryMessage(interface{}) *message.BroadcastedMessage
+	HistoryMessage(interface{}, []int) *message.BroadcastedMessage
 }
 
 type messageProcessor struct {
@@ -32,6 +34,10 @@ func (mp messageProcessor) ErrorMessage(err string) *message.BroadcastedMessage 
 	}
 }
 
-func (mp messageProcessor) HistoryMessage(history interface{}) *message.BroadcastedMessage {
-	return nil
+func (mp messageProcessor) HistoryMessage(history interface{}, roomIDs []int) *message.BroadcastedMessage {
+	return &message.BroadcastedMessage{
+		Action:  "history",
+		RoomIDs: roomIDs,
+		Content: fmt.Sprintf("%s", history),
+	}
 }

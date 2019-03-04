@@ -16,14 +16,14 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: -
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
 --
 
 CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
 
 
 --
--- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: -
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
 --
 
 COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
@@ -34,7 +34,7 @@ SET default_tablespace = '';
 SET default_with_oids = false;
 
 --
--- Name: Channels; Type: TABLE; Schema: public; Owner: -
+-- Name: Channels; Type: TABLE; Schema: public; Owner: admin
 --
 
 CREATE TABLE public."Channels" (
@@ -44,8 +44,10 @@ CREATE TABLE public."Channels" (
 );
 
 
+ALTER TABLE public."Channels" OWNER TO admin;
+
 --
--- Name: Channels_ChannelID_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: Channels_ChannelID_seq; Type: SEQUENCE; Schema: public; Owner: admin
 --
 
 CREATE SEQUENCE public."Channels_ChannelID_seq"
@@ -57,27 +59,31 @@ CREATE SEQUENCE public."Channels_ChannelID_seq"
     CACHE 1;
 
 
+ALTER TABLE public."Channels_ChannelID_seq" OWNER TO admin;
+
 --
--- Name: Channels_ChannelID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: Channels_ChannelID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: admin
 --
 
 ALTER SEQUENCE public."Channels_ChannelID_seq" OWNED BY public."Channels"."ChannelID";
 
 
 --
--- Name: Messages; Type: TABLE; Schema: public; Owner: -
+-- Name: Messages; Type: TABLE; Schema: public; Owner: admin
 --
 
 CREATE TABLE public."Messages" (
     "MessageID" integer NOT NULL,
     "Content" text NOT NULL,
-    "RoomID" integer NOT NULL,
-    "UserID" integer NOT NULL
+    "UserID" integer NOT NULL,
+    "SentAt" timestamp without time zone DEFAULT now()
 );
 
 
+ALTER TABLE public."Messages" OWNER TO admin;
+
 --
--- Name: Messages_MessageID_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: Messages_MessageID_seq; Type: SEQUENCE; Schema: public; Owner: admin
 --
 
 CREATE SEQUENCE public."Messages_MessageID_seq"
@@ -89,15 +95,29 @@ CREATE SEQUENCE public."Messages_MessageID_seq"
     CACHE 1;
 
 
+ALTER TABLE public."Messages_MessageID_seq" OWNER TO admin;
+
 --
--- Name: Messages_MessageID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: Messages_MessageID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: admin
 --
 
 ALTER SEQUENCE public."Messages_MessageID_seq" OWNED BY public."Messages"."MessageID";
 
 
 --
--- Name: Permissions; Type: TABLE; Schema: public; Owner: -
+-- Name: Messages_Rooms; Type: TABLE; Schema: public; Owner: admin
+--
+
+CREATE TABLE public."Messages_Rooms" (
+    "MessageID" integer NOT NULL,
+    "RoomID" integer NOT NULL
+);
+
+
+ALTER TABLE public."Messages_Rooms" OWNER TO admin;
+
+--
+-- Name: Permissions; Type: TABLE; Schema: public; Owner: admin
 --
 
 CREATE TABLE public."Permissions" (
@@ -107,8 +127,10 @@ CREATE TABLE public."Permissions" (
 );
 
 
+ALTER TABLE public."Permissions" OWNER TO admin;
+
 --
--- Name: Permissions_PermissionID_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: Permissions_PermissionID_seq; Type: SEQUENCE; Schema: public; Owner: admin
 --
 
 CREATE SEQUENCE public."Permissions_PermissionID_seq"
@@ -120,15 +142,17 @@ CREATE SEQUENCE public."Permissions_PermissionID_seq"
     CACHE 1;
 
 
+ALTER TABLE public."Permissions_PermissionID_seq" OWNER TO admin;
+
 --
--- Name: Permissions_PermissionID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: Permissions_PermissionID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: admin
 --
 
 ALTER SEQUENCE public."Permissions_PermissionID_seq" OWNED BY public."Permissions"."PermissionID";
 
 
 --
--- Name: Roles; Type: TABLE; Schema: public; Owner: -
+-- Name: Roles; Type: TABLE; Schema: public; Owner: admin
 --
 
 CREATE TABLE public."Roles" (
@@ -138,8 +162,10 @@ CREATE TABLE public."Roles" (
 );
 
 
+ALTER TABLE public."Roles" OWNER TO admin;
+
 --
--- Name: Roles_Permissions; Type: TABLE; Schema: public; Owner: -
+-- Name: Roles_Permissions; Type: TABLE; Schema: public; Owner: admin
 --
 
 CREATE TABLE public."Roles_Permissions" (
@@ -148,8 +174,10 @@ CREATE TABLE public."Roles_Permissions" (
 );
 
 
+ALTER TABLE public."Roles_Permissions" OWNER TO admin;
+
 --
--- Name: Roles_RoleID_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: Roles_RoleID_seq; Type: SEQUENCE; Schema: public; Owner: admin
 --
 
 CREATE SEQUENCE public."Roles_RoleID_seq"
@@ -161,27 +189,32 @@ CREATE SEQUENCE public."Roles_RoleID_seq"
     CACHE 1;
 
 
+ALTER TABLE public."Roles_RoleID_seq" OWNER TO admin;
+
 --
--- Name: Roles_RoleID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: Roles_RoleID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: admin
 --
 
 ALTER SEQUENCE public."Roles_RoleID_seq" OWNED BY public."Roles"."RoleID";
 
 
 --
--- Name: Rooms; Type: TABLE; Schema: public; Owner: -
+-- Name: Rooms; Type: TABLE; Schema: public; Owner: admin
 --
 
 CREATE TABLE public."Rooms" (
     "RoomID" integer NOT NULL,
     "Name" text,
     "Description" text,
-    "ChannelID" integer
+    "ChannelID" integer,
+    "JoinedAt" time without time zone DEFAULT now()
 );
 
 
+ALTER TABLE public."Rooms" OWNER TO admin;
+
 --
--- Name: Rooms_RoomID_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: Rooms_RoomID_seq; Type: SEQUENCE; Schema: public; Owner: admin
 --
 
 CREATE SEQUENCE public."Rooms_RoomID_seq"
@@ -193,15 +226,17 @@ CREATE SEQUENCE public."Rooms_RoomID_seq"
     CACHE 1;
 
 
+ALTER TABLE public."Rooms_RoomID_seq" OWNER TO admin;
+
 --
--- Name: Rooms_RoomID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: Rooms_RoomID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: admin
 --
 
 ALTER SEQUENCE public."Rooms_RoomID_seq" OWNED BY public."Rooms"."RoomID";
 
 
 --
--- Name: Users; Type: TABLE; Schema: public; Owner: -
+-- Name: Users; Type: TABLE; Schema: public; Owner: admin
 --
 
 CREATE TABLE public."Users" (
@@ -212,8 +247,10 @@ CREATE TABLE public."Users" (
 );
 
 
+ALTER TABLE public."Users" OWNER TO admin;
+
 --
--- Name: Users_Channels; Type: TABLE; Schema: public; Owner: -
+-- Name: Users_Channels; Type: TABLE; Schema: public; Owner: admin
 --
 
 CREATE TABLE public."Users_Channels" (
@@ -223,8 +260,10 @@ CREATE TABLE public."Users_Channels" (
 );
 
 
+ALTER TABLE public."Users_Channels" OWNER TO admin;
+
 --
--- Name: Users_Rooms; Type: TABLE; Schema: public; Owner: -
+-- Name: Users_Rooms; Type: TABLE; Schema: public; Owner: admin
 --
 
 CREATE TABLE public."Users_Rooms" (
@@ -235,8 +274,10 @@ CREATE TABLE public."Users_Rooms" (
 );
 
 
+ALTER TABLE public."Users_Rooms" OWNER TO admin;
+
 --
--- Name: users_UserID_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: users_UserID_seq; Type: SEQUENCE; Schema: public; Owner: admin
 --
 
 CREATE SEQUENCE public."users_UserID_seq"
@@ -248,57 +289,59 @@ CREATE SEQUENCE public."users_UserID_seq"
     CACHE 1;
 
 
+ALTER TABLE public."users_UserID_seq" OWNER TO admin;
+
 --
--- Name: users_UserID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: users_UserID_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: admin
 --
 
 ALTER SEQUENCE public."users_UserID_seq" OWNED BY public."Users"."UserID";
 
 
 --
--- Name: Channels ChannelID; Type: DEFAULT; Schema: public; Owner: -
+-- Name: Channels ChannelID; Type: DEFAULT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Channels" ALTER COLUMN "ChannelID" SET DEFAULT nextval('public."Channels_ChannelID_seq"'::regclass);
 
 
 --
--- Name: Messages MessageID; Type: DEFAULT; Schema: public; Owner: -
+-- Name: Messages MessageID; Type: DEFAULT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Messages" ALTER COLUMN "MessageID" SET DEFAULT nextval('public."Messages_MessageID_seq"'::regclass);
 
 
 --
--- Name: Permissions PermissionID; Type: DEFAULT; Schema: public; Owner: -
+-- Name: Permissions PermissionID; Type: DEFAULT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Permissions" ALTER COLUMN "PermissionID" SET DEFAULT nextval('public."Permissions_PermissionID_seq"'::regclass);
 
 
 --
--- Name: Roles RoleID; Type: DEFAULT; Schema: public; Owner: -
+-- Name: Roles RoleID; Type: DEFAULT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Roles" ALTER COLUMN "RoleID" SET DEFAULT nextval('public."Roles_RoleID_seq"'::regclass);
 
 
 --
--- Name: Rooms RoomID; Type: DEFAULT; Schema: public; Owner: -
+-- Name: Rooms RoomID; Type: DEFAULT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Rooms" ALTER COLUMN "RoomID" SET DEFAULT nextval('public."Rooms_RoomID_seq"'::regclass);
 
 
 --
--- Name: Users UserID; Type: DEFAULT; Schema: public; Owner: -
+-- Name: Users UserID; Type: DEFAULT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Users" ALTER COLUMN "UserID" SET DEFAULT nextval('public."users_UserID_seq"'::regclass);
 
 
 --
--- Data for Name: Channels; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: Channels; Type: TABLE DATA; Schema: public; Owner: admin
 --
 
 COPY public."Channels" ("ChannelID", "Name", "Description") FROM stdin;
@@ -307,17 +350,40 @@ COPY public."Channels" ("ChannelID", "Name", "Description") FROM stdin;
 
 
 --
--- Data for Name: Messages; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: Messages; Type: TABLE DATA; Schema: public; Owner: admin
 --
 
-COPY public."Messages" ("MessageID", "Content", "RoomID", "UserID") FROM stdin;
-1	Room2	1	2
-2	Room2	1	2
+COPY public."Messages" ("MessageID", "Content", "UserID", "SentAt") FROM stdin;
+1	room1 user 2 mes 1\n	2	2019-03-01 13:20:45.027347
+2	room 1 user 2 mes 2\n	2	2019-03-01 13:20:45.027347
+3	room 1 user 2 mes 3\n	2	2019-03-01 13:20:45.027347
+4	room 2 user 1 mes 1	1	2019-03-01 13:20:45.027347
+5	room 2 user 1 mes 2	1	2019-03-01 13:20:45.027347
+6	room 2 user 1 mes 3	1	2019-03-01 13:20:45.027347
+7	room 1 user 1 mes 4	1	2019-03-01 13:20:45.027347
+8	room 1user 1 mes 5	1	2019-03-01 13:20:45.027347
+9	room 2 user 2 mes 4	2	2019-03-01 13:20:45.027347
+10	room 2 user 2 mes 5	2	2019-03-01 13:20:45.027347
 \.
 
 
 --
--- Data for Name: Permissions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: Messages_Rooms; Type: TABLE DATA; Schema: public; Owner: admin
+--
+
+COPY public."Messages_Rooms" ("MessageID", "RoomID") FROM stdin;
+1	1
+2	1
+3	1
+7	1
+8	1
+4	2
+5	2
+\.
+
+
+--
+-- Data for Name: Permissions; Type: TABLE DATA; Schema: public; Owner: admin
 --
 
 COPY public."Permissions" ("PermissionID", "Name", "Description") FROM stdin;
@@ -326,7 +392,7 @@ COPY public."Permissions" ("PermissionID", "Name", "Description") FROM stdin;
 
 
 --
--- Data for Name: Roles; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: Roles; Type: TABLE DATA; Schema: public; Owner: admin
 --
 
 COPY public."Roles" ("RoleID", "Name", "Description") FROM stdin;
@@ -336,7 +402,7 @@ COPY public."Roles" ("RoleID", "Name", "Description") FROM stdin;
 
 
 --
--- Data for Name: Roles_Permissions; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: Roles_Permissions; Type: TABLE DATA; Schema: public; Owner: admin
 --
 
 COPY public."Roles_Permissions" ("RoleID", "PermissionID") FROM stdin;
@@ -344,17 +410,19 @@ COPY public."Roles_Permissions" ("RoleID", "PermissionID") FROM stdin;
 
 
 --
--- Data for Name: Rooms; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: Rooms; Type: TABLE DATA; Schema: public; Owner: admin
 --
 
-COPY public."Rooms" ("RoomID", "Name", "Description", "ChannelID") FROM stdin;
-2	Room2		1
-1	Room1		1
+COPY public."Rooms" ("RoomID", "Name", "Description", "ChannelID", "JoinedAt") FROM stdin;
+2	Room2		1	11:43:51.237505
+1	Room1		1	11:43:51.237505
+3	Room3	\N	1	14:39:41.553092
+-1	All	\N	1	14:40:54.259689
 \.
 
 
 --
--- Data for Name: Users; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: Users; Type: TABLE DATA; Schema: public; Owner: admin
 --
 
 COPY public."Users" ("UserID", "Name", "UserData", "RoleID") FROM stdin;
@@ -370,16 +438,17 @@ COPY public."Users" ("UserID", "Name", "UserData", "RoleID") FROM stdin;
 
 
 --
--- Data for Name: Users_Channels; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: Users_Channels; Type: TABLE DATA; Schema: public; Owner: admin
 --
 
 COPY public."Users_Channels" ("UserID", "ChannelID", "Joined") FROM stdin;
 3	1	2019-02-26 15:49:54
+1	1	2019-03-04 16:18:05.350016
 \.
 
 
 --
--- Data for Name: Users_Rooms; Type: TABLE DATA; Schema: public; Owner: -
+-- Data for Name: Users_Rooms; Type: TABLE DATA; Schema: public; Owner: admin
 --
 
 COPY public."Users_Rooms" ("UserID", "RoomID", "Joined", "LastActivity") FROM stdin;
@@ -387,49 +456,49 @@ COPY public."Users_Rooms" ("UserID", "RoomID", "Joined", "LastActivity") FROM st
 
 
 --
--- Name: Channels_ChannelID_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: Channels_ChannelID_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
 SELECT pg_catalog.setval('public."Channels_ChannelID_seq"', 1, true);
 
 
 --
--- Name: Messages_MessageID_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: Messages_MessageID_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
 SELECT pg_catalog.setval('public."Messages_MessageID_seq"', 2, true);
 
 
 --
--- Name: Permissions_PermissionID_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: Permissions_PermissionID_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
 SELECT pg_catalog.setval('public."Permissions_PermissionID_seq"', 1, true);
 
 
 --
--- Name: Roles_RoleID_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: Roles_RoleID_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
 SELECT pg_catalog.setval('public."Roles_RoleID_seq"', 2, true);
 
 
 --
--- Name: Rooms_RoomID_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: Rooms_RoomID_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
 SELECT pg_catalog.setval('public."Rooms_RoomID_seq"', 2, true);
 
 
 --
--- Name: users_UserID_seq; Type: SEQUENCE SET; Schema: public; Owner: -
+-- Name: users_UserID_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
 SELECT pg_catalog.setval('public."users_UserID_seq"', 35, true);
 
 
 --
--- Name: Channels Channels_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: Channels Channels_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Channels"
@@ -437,7 +506,15 @@ ALTER TABLE ONLY public."Channels"
 
 
 --
--- Name: Messages Messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: Messages_Rooms Message_Room_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
+--
+
+ALTER TABLE ONLY public."Messages_Rooms"
+    ADD CONSTRAINT "Message_Room_pkey" PRIMARY KEY ("MessageID", "RoomID");
+
+
+--
+-- Name: Messages Messages_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Messages"
@@ -445,7 +522,7 @@ ALTER TABLE ONLY public."Messages"
 
 
 --
--- Name: Permissions Permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: Permissions Permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Permissions"
@@ -453,7 +530,7 @@ ALTER TABLE ONLY public."Permissions"
 
 
 --
--- Name: Roles_Permissions Role_Permission_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: Roles_Permissions Role_Permission_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Roles_Permissions"
@@ -461,7 +538,7 @@ ALTER TABLE ONLY public."Roles_Permissions"
 
 
 --
--- Name: Roles Roles_Name_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: Roles Roles_Name_key; Type: CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Roles"
@@ -469,7 +546,7 @@ ALTER TABLE ONLY public."Roles"
 
 
 --
--- Name: Roles Roles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: Roles Roles_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Roles"
@@ -477,7 +554,7 @@ ALTER TABLE ONLY public."Roles"
 
 
 --
--- Name: Rooms Rooms_Name_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: Rooms Rooms_Name_key; Type: CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Rooms"
@@ -485,7 +562,7 @@ ALTER TABLE ONLY public."Rooms"
 
 
 --
--- Name: Rooms Rooms_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: Rooms Rooms_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Rooms"
@@ -493,7 +570,7 @@ ALTER TABLE ONLY public."Rooms"
 
 
 --
--- Name: Users_Channels User_Channel_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: Users_Channels User_Channel_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Users_Channels"
@@ -501,7 +578,7 @@ ALTER TABLE ONLY public."Users_Channels"
 
 
 --
--- Name: Users_Rooms User_Room_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: Users_Rooms User_Room_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Users_Rooms"
@@ -509,7 +586,7 @@ ALTER TABLE ONLY public."Users_Rooms"
 
 
 --
--- Name: Users Users_Name_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: Users Users_Name_key; Type: CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Users"
@@ -517,7 +594,7 @@ ALTER TABLE ONLY public."Users"
 
 
 --
--- Name: Users users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: Users users_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Users"
@@ -525,14 +602,21 @@ ALTER TABLE ONLY public."Users"
 
 
 --
--- Name: fki_FK_Role_User; Type: INDEX; Schema: public; Owner: -
+-- Name: fki_FK_Role_User; Type: INDEX; Schema: public; Owner: admin
 --
 
 CREATE INDEX "fki_FK_Role_User" ON public."Users" USING btree ("RoleID");
 
 
 --
--- Name: Users_Channels FK_ChannelID; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: fki_FK_UserID; Type: INDEX; Schema: public; Owner: admin
+--
+
+CREATE INDEX "fki_FK_UserID" ON public."Messages" USING btree ("UserID");
+
+
+--
+-- Name: Users_Channels FK_ChannelID; Type: FK CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Users_Channels"
@@ -540,7 +624,7 @@ ALTER TABLE ONLY public."Users_Channels"
 
 
 --
--- Name: Rooms FK_ChannelID; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: Rooms FK_ChannelID; Type: FK CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Rooms"
@@ -548,7 +632,15 @@ ALTER TABLE ONLY public."Rooms"
 
 
 --
--- Name: Roles_Permissions FK_Permissions; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: Messages_Rooms FK_MessageID; Type: FK CONSTRAINT; Schema: public; Owner: admin
+--
+
+ALTER TABLE ONLY public."Messages_Rooms"
+    ADD CONSTRAINT "FK_MessageID" FOREIGN KEY ("MessageID") REFERENCES public."Messages"("MessageID");
+
+
+--
+-- Name: Roles_Permissions FK_Permissions; Type: FK CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Roles_Permissions"
@@ -556,7 +648,7 @@ ALTER TABLE ONLY public."Roles_Permissions"
 
 
 --
--- Name: Users FK_Role_User; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: Users FK_Role_User; Type: FK CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Users"
@@ -564,7 +656,7 @@ ALTER TABLE ONLY public."Users"
 
 
 --
--- Name: Roles_Permissions FK_Roles; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: Roles_Permissions FK_Roles; Type: FK CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Roles_Permissions"
@@ -572,7 +664,7 @@ ALTER TABLE ONLY public."Roles_Permissions"
 
 
 --
--- Name: Users_Rooms FK_RoomID; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: Users_Rooms FK_RoomID; Type: FK CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Users_Rooms"
@@ -580,15 +672,15 @@ ALTER TABLE ONLY public."Users_Rooms"
 
 
 --
--- Name: Messages FK_Room_Message; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: Messages_Rooms FK_RoomID; Type: FK CONSTRAINT; Schema: public; Owner: admin
 --
 
-ALTER TABLE ONLY public."Messages"
-    ADD CONSTRAINT "FK_Room_Message" FOREIGN KEY ("MessageID") REFERENCES public."Rooms"("RoomID");
+ALTER TABLE ONLY public."Messages_Rooms"
+    ADD CONSTRAINT "FK_RoomID" FOREIGN KEY ("RoomID") REFERENCES public."Rooms"("RoomID");
 
 
 --
--- Name: Users_Rooms FK_UserID; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: Users_Rooms FK_UserID; Type: FK CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Users_Rooms"
@@ -596,7 +688,7 @@ ALTER TABLE ONLY public."Users_Rooms"
 
 
 --
--- Name: Users_Channels FK_UserID; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: Users_Channels FK_UserID; Type: FK CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Users_Channels"
@@ -604,11 +696,11 @@ ALTER TABLE ONLY public."Users_Channels"
 
 
 --
--- Name: Messages FK_User_Message; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: Messages FK_UserID; Type: FK CONSTRAINT; Schema: public; Owner: admin
 --
 
 ALTER TABLE ONLY public."Messages"
-    ADD CONSTRAINT "FK_User_Message" FOREIGN KEY ("MessageID") REFERENCES public."Users"("UserID");
+    ADD CONSTRAINT "FK_UserID" FOREIGN KEY ("UserID") REFERENCES public."Users"("UserID");
 
 
 --

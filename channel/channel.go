@@ -104,8 +104,11 @@ func (c *channel) Run() {
 			close(client.ForwardMessage())
 		case clientMessage := <-c.messageQueue:
 			err := c.broadcastMessage(c.messageProcessor.ProcessMessage(clientMessage.Message))
-			if err != nil {
+			if err == nil {
+				c.messagesRepo.Create(clientMessage.Message)
+			} else {
 				clientMessage.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
+
 			}
 		case clientRoom := <-c.joinRoom:
 			err := c.addClientToRoom(clientRoom)
@@ -114,7 +117,6 @@ func (c *channel) Run() {
 				clientRoom.Client.ForwardMessage() <- c.messageProcessor.HistoryMessage(history, clientRoom.Rooms)
 			} else {
 				clientRoom.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
-
 			}
 		case clientRoom := <-c.leaveRoom:
 			err := c.removeClientFromRoom(clientRoom)

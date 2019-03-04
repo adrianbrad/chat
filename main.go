@@ -79,7 +79,7 @@ func routes(channel channel.Channel) (r *chi.Mux) {
 	r.Use(logging)
 	r.Use(authRequests)
 	// * http.HandleFunc(s)
-	r.Get("/", redirectToChat)
+
 	// * http.Handler(s)
 	r.Method(http.MethodGet, "/assets/", http.StripPrefix("/assets", http.FileServer(http.Dir("/home/brad/workspace/go/src/github.com/adrianbrad/chat/assets"))))
 	r.Method(http.MethodGet, "/chat", &templateHandler{filename: "chat.html"})

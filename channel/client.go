@@ -55,9 +55,9 @@ func (client *client) Read() {
 	for {
 		var receivedMessage *message.ReceivedMessage
 		err := client.socket.ReadJSON(&receivedMessage)
-		log.Println(err)
 		//if reading from socket fails the for loop is broken and the socket is closed
 		if err != nil {
+			log.Println(err)
 			return
 		}
 

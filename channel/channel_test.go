@@ -33,10 +33,25 @@ func TestReceiveHistoryWhenJoiningRoom(t *testing.T) {
 
 	cls := initMockClients(3, ch)
 
-	cls[0].setNextMessageToReadAndRead(cls[0].joinRoomsMessage(1))
+	cls[0].setNextMessageToReadAndRead(cls[0].joinRoomsMessage(5, 1))
 	time.Sleep(50 * time.Millisecond)
-	// fmt.Println(cls[0].messages)
 
+	mesRepoMock := NewMessagesRepoMock(6, 5)
+	var expected [][]interface{}
+	expected = append(expected, mesRepoMock.GetAllWhere("RoomID", 1, 5))
+	ch.messageProcessor.HistoryMessage(expected, []int{1})
+	assertEqual(t, cls[0].messages[0].Content, fmt.Sprintf("%s", expected))
+
+	cls[1].setNextMessageToReadAndRead(cls[1].joinRoomsMessage(5, 1, 2))
+	time.Sleep(100 * time.Millisecond)
+
+	expected = nil
+	expected = append(expected, mesRepoMock.GetAllWhere("RoomID", 1, 5))
+	expected = append(expected, mesRepoMock.GetAllWhere("RoomID", 2, 5))
+	fmt.Println(append(expected, mesRepoMock.GetAllWhere("RoomID", 2, 5)))
+	ch.messageProcessor.HistoryMessage(expected, []int{1, 2})
+
+	assertEqual(t, cls[1].messages[0].Content, fmt.Sprintf("%s", expected))
 }
 
 func TestClientsSuccesfullyJoinRooms(t *testing.T) {
@@ -45,18 +60,18 @@ func TestClientsSuccesfullyJoinRooms(t *testing.T) {
 
 	cls := initMockClients(3, ch)
 
-	cls[0].setNextMessageToRead(cls[0].joinRoomsMessage(1))
+	cls[0].setNextMessageToRead(cls[0].joinRoomsMessage(0, 1))
 	cls[0].Read()
 	time.Sleep(50 * time.Millisecond)
 	assertEqual(t, len(ch.rooms[1]), 1)
 
-	cls[1].setNextMessageToRead(cls[1].joinRoomsMessage(1))
+	cls[1].setNextMessageToRead(cls[1].joinRoomsMessage(0, 1))
 	cls[1].Read()
 	time.Sleep(50 * time.Millisecond)
 	assertEqual(t, len(ch.rooms[1]), 2)
 
 	//Client tries to join multiple rooms at once
-	cls[2].setNextMessageToRead(cls[2].joinRoomsMessage(1, 2))
+	cls[2].setNextMessageToRead(cls[2].joinRoomsMessage(0, 1, 2))
 	cls[2].Read()
 	time.Sleep(50 * time.Millisecond)
 	assertEqual(t, len(ch.rooms[1]), 3)
@@ -69,7 +84,7 @@ func TestClientsSuccesfullyLeaveRooms(t *testing.T) {
 	cls := initMockClients(3, ch)
 
 	for _, client := range cls {
-		client.setNextMessageToReadAndRead(client.joinRoomsMessage(1, 2, 3))
+		client.setNextMessageToReadAndRead(client.joinRoomsMessage(0, 1, 2, 3))
 	}
 	time.Sleep(100 * time.Millisecond)
 
@@ -99,9 +114,12 @@ func TestClientsUnsuccesfullyLeaveRooms(t *testing.T) {
 	cls := initMockClients(3, ch)
 
 	for _, client := range cls {
-		client.setNextMessageToReadAndRead(client.joinRoomsMessage(1, 2))
+		client.setNextMessageToReadAndRead(client.joinRoomsMessage(0, 1, 2))
 	}
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
+	for _, client := range cls {
+		client.clearMessages()
+	}
 
 	assertEqual(t, len(ch.rooms[1]), 3)
 	assertEqual(t, len(ch.rooms[2]), 3)
@@ -130,7 +148,7 @@ func TestClientsFailToJoinRooms(t *testing.T) {
 
 	cls := initMockClients(1, ch)
 	//Client wants to join multiple rooms but one does not exist. it joins the possible ones and receives an error about the non existing room
-	cls[0].setNextMessageToRead(cls[0].joinRoomsMessage(1, 2, 4))
+	cls[0].setNextMessageToRead(cls[0].joinRoomsMessage(0, 1, 2, 4))
 	cls[0].Read()
 	time.Sleep(50 * time.Millisecond)
 	assertEqual(t, len(ch.rooms[1]), 1)
@@ -141,7 +159,7 @@ func TestClientsFailToJoinRooms(t *testing.T) {
 	//Client wants to join a room but it is already in it
 	cls[0].clearMessages()
 	assertEqual(t, len(cls[0].messages), 0)
-	cls[0].setNextMessageToRead(cls[0].joinRoomsMessage(1))
+	cls[0].setNextMessageToRead(cls[0].joinRoomsMessage(0, 1))
 	cls[0].Read()
 	time.Sleep(50 * time.Millisecond)
 	assertEqual(t, len(ch.rooms[1]), 1)
@@ -154,11 +172,16 @@ func TestClientsSendMessages(t *testing.T) {
 	go ch.Run()
 
 	cls := initMockClients(5, ch)
-	cls[0].setNextMessageToReadAndRead(cls[0].joinRoomsMessage(1))
-	cls[1].setNextMessageToReadAndRead(cls[1].joinRoomsMessage(2))
-	cls[2].setNextMessageToReadAndRead(cls[2].joinRoomsMessage(3))
-	cls[3].setNextMessageToReadAndRead(cls[3].joinRoomsMessage(1))
-	cls[4].setNextMessageToReadAndRead(cls[4].joinRoomsMessage(2))
+	cls[0].setNextMessageToReadAndRead(cls[0].joinRoomsMessage(0, 1))
+	cls[1].setNextMessageToReadAndRead(cls[1].joinRoomsMessage(0, 2))
+	cls[2].setNextMessageToReadAndRead(cls[2].joinRoomsMessage(0, 3))
+	cls[3].setNextMessageToReadAndRead(cls[3].joinRoomsMessage(0, 1))
+	cls[4].setNextMessageToReadAndRead(cls[4].joinRoomsMessage(0, 2))
+
+	time.Sleep(50 * time.Millisecond)
+	for _, client := range cls {
+		client.clearMessages()
+	}
 
 	//0 in room 1, 1 in room 2, 2 in room 3, 3 in room 1, 4 in room 2
 	cls[0].setNextMessageToReadAndRead(cls[0].sendMessageToRooms("To all", -1))
@@ -197,9 +220,14 @@ func TestClientUnsuccessfullySendMessage(t *testing.T) {
 
 	cls := initMockClients(2, ch)
 
-	cls[0].setNextMessageToReadAndRead(cls[0].joinRoomsMessage(1))
-	cls[1].setNextMessageToReadAndRead(cls[1].joinRoomsMessage(2))
-	cls[1].setNextMessageToReadAndRead(cls[1].joinRoomsMessage(1))
+	cls[0].setNextMessageToReadAndRead(cls[0].joinRoomsMessage(0, 1))
+	cls[1].setNextMessageToReadAndRead(cls[1].joinRoomsMessage(0, 2))
+	cls[1].setNextMessageToReadAndRead(cls[1].joinRoomsMessage(0, 1))
+
+	time.Sleep(50 * time.Millisecond)
+	for _, client := range cls {
+		client.clearMessages()
+	}
 
 	cls[0].setNextMessageToReadAndRead(cls[0].sendMessageToRooms("Sending to room 1 and 2 and 7(inexistent)", 1, 2, 7))
 	time.Sleep(100 * time.Millisecond)
@@ -222,7 +250,7 @@ func initChannelWithMocks() *channel {
 		usersChannelsRepo: NewUSersChannelsRepoMock(),
 		channelID:         channelID,
 		usersRepo:         NewUsersRepoMock(),
-		messagesRepo:      NewMessagesRepoMock(40, 5),
+		messagesRepo:      NewMessagesRepoMock(6, 5),
 		messageProcessor:  messageProcessor.New(),
 		rooms: map[int]map[Client]bool{
 			1: map[Client]bool{},
@@ -246,5 +274,5 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 	if a == b {
 		return
 	}
-	t.Errorf("Received %v (type %v), expected %v (type %v)", a, reflect.TypeOf(a), b, reflect.TypeOf(b))
+	t.Errorf("\nReceived %v (type %v)\nExpected %v (type %v)", a, reflect.TypeOf(a), b, reflect.TypeOf(b))
 }

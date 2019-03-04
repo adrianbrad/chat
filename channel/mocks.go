@@ -76,7 +76,7 @@ func NewMessagesRepoMock(nrOfMessages, nrOfRooms int) repository.Repository {
 			messages[j] = append(messages[j], model.Message{
 				UserID:  1,
 				Content: fmt.Sprintf("Room %d message %d", j, i),
-				RoomID:  j,
+				RoomIDs: []int{j},
 			})
 		}
 	}
@@ -96,8 +96,7 @@ func (r messagesRepoMock) GetAll() []interface{} {
 }
 
 func (r messagesRepoMock) GetAllWhere(column string, roomid int, limit int) (history []interface{}) {
-	history = append(history, r.messages[roomid][len(r.messages[roomid])-limit:len(r.messages[roomid])-1])
-	return
+	return append(history, r.messages[roomid][len(r.messages[roomid])-1-limit:len(r.messages[roomid])-1])
 }
 
 func (r messagesRepoMock) Create(interface{}) (int, error) {
@@ -130,10 +129,10 @@ func (c *clientMock) Read() {
 	switch c.nextMessageToRead.Action {
 	case "join":
 		historyLimit := 30
-		if givenHistoryLimit, err := strconv.Atoi(c.nextMessageToRead.Content); err == nil {
+		givenHistoryLimit, err := strconv.Atoi(c.nextMessageToRead.Content)
+		if err == nil {
 			historyLimit = givenHistoryLimit
 		}
-
 		c.join <- ClientJoinsRooms{
 			ClientRooms: ClientRooms{
 				Client: c,
@@ -177,11 +176,12 @@ func (c *clientMock) setNextMessageToReadAndRead(rm *message.ReceivedMessage) {
 	c.Read()
 }
 
-func (c clientMock) joinRoomsMessage(roomIDs ...int) *message.ReceivedMessage {
+func (c clientMock) joinRoomsMessage(historyLimit int, roomIDs ...int) *message.ReceivedMessage {
 	return &message.ReceivedMessage{
 		UserID:  c.userID,
 		Action:  "join",
 		RoomIDs: roomIDs,
+		Content: strconv.Itoa(historyLimit),
 	}
 }
 

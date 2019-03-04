@@ -74,6 +74,15 @@
                             alert("Error: Your browser does not support web sockets.")
                         } else {
                             socket = new WebSocket("ws" + connAddr.val(), [token.val()]);
+                            socket.onopen = () => {
+                                connectToRoom = {
+                                    "UserID" : 1,
+                                    "Content": "5",
+                                    "Action" : "join",
+                                    "RoomIDs" : [1]
+                                }
+                                socket.send(JSON.stringify(connectToRoom))
+                            }
                             socket.onclose = function() {
                                 alert("Connection has been closed.");
                             }

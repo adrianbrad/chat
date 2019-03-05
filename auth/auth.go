@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -67,12 +68,14 @@ func (a *authenticator) authenticate(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
 		return
 	}
 
 	userID, err := strconv.Atoi(string(userIDbytes))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		log.Println(err)
 		return
 	}
 

@@ -5,5 +5,5 @@ type BroadcastedMessage struct {
 	RoomIDs  []int
 	UserID   int
 	Nickname string
-	Content  string
+	Content  interface{}
 }

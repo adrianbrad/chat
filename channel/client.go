@@ -13,7 +13,7 @@ import (
 type Client interface {
 	Read()
 	Write()
-	ForwardMessage() chan *message.BroadcastedMessage
+	ForwardMessage() chan *model.Message
 	GetUserID() int
 	Close()
 }
@@ -22,7 +22,7 @@ type client struct {
 	//socket is the websocket connection for this client
 	socket *websocket.Conn
 	//forwardMessage is the buffered channel on which messages are queued ready to be forwarded to the user browser
-	forwardMessage chan *message.BroadcastedMessage
+	forwardMessage chan *model.Message
 	//channel is the channel this client is chatting in, used to broadcast messages to everyone else in the channel
 	channelMessageQueue chan ClientMessage
 	//join
@@ -35,7 +35,7 @@ type client struct {
 
 func NewClient(
 	socket *websocket.Conn,
-	forwardMessage chan *message.BroadcastedMessage,
+	forwardMessage chan *model.Message,
 	incomingMessage chan ClientMessage, user model.User,
 	join chan ClientJoinsRooms, leave chan ClientRooms) Client {
 	return &client{
@@ -60,7 +60,6 @@ func (client *client) Read() {
 			log.Println(err)
 			return
 		}
-
 		switch receivedMessage.Action {
 		case "join":
 			historyLimit := 30
@@ -103,7 +102,7 @@ func (client client) sendHistory(rm *message.ReceivedMessage) *message.Broadcast
 	return nil
 }
 
-func (client *client) ForwardMessage() chan *message.BroadcastedMessage {
+func (client *client) ForwardMessage() chan *model.Message {
 	return client.forwardMessage
 }
 

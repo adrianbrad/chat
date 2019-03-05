@@ -7,10 +7,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/adrianbrad/chat/messageProcessor"
 
-	"github.com/adrianbrad/chat/message"
 	"github.com/adrianbrad/chat/model"
 	"github.com/adrianbrad/chat/repository"
 	"github.com/adrianbrad/chat/trace"
@@ -27,7 +27,6 @@ type channel struct {
 
 	//channel ID holds the current channel id
 	channelID int
-
 	//messageQueue is a channel that holds incoming message
 	//incoming messages should be broadcasted to the other clients
 	messageQueue chan ClientMessage
@@ -44,7 +43,7 @@ type channel struct {
 	//clients holds all current clients in this channel
 	clients map[Client]bool
 	//rooms hold references for all the connections in a room RoomID -> A client with a WebsocketConn
-	rooms map[int]map[Client]bool
+	rooms map[int64]map[Client]bool
 
 	//repo persists the changes made to the channel
 	usersChannelsRepo repository.UsersChannelsRepository
@@ -63,7 +62,7 @@ func New(
 	channelID int,
 	usersRepo repository.Repository,
 	messageProcessor messageProcessor.MessageProcessor,
-	roomIDs []int,
+	roomIDs []int64,
 	messagesRepo repository.Repository) Channel {
 	c := &channel{
 		messageQueue: make(chan ClientMessage),
@@ -73,7 +72,7 @@ func New(
 		leaveRoom:    make(chan ClientRooms),
 		clients:      make(map[Client]bool),
 		tracer:       trace.New(os.Stdout),
-		rooms:        make(map[int]map[Client]bool),
+		rooms:        make(map[int64]map[Client]bool),
 
 		usersChannelsRepo: usersChannelsRepo,
 		channelID:         channelID,
@@ -99,17 +98,28 @@ func (c *channel) Run() {
 				log.Println("Channel.Run -for.select.case.joinChannel: ", err)
 				client.Close()
 			}
+
 		case client := <-c.leaveChannel:
 			delete(c.clients, client)
 			close(client.ForwardMessage())
-		case clientMessage := <-c.messageQueue:
-			err := c.broadcastMessage(c.messageProcessor.ProcessMessage(clientMessage.Message))
-			if err == nil {
-				c.messagesRepo.Create(clientMessage.Message)
-			} else {
-				clientMessage.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
 
+		case clientMessage := <-c.messageQueue:
+			//transform into model
+			messageToSend := model.NewMessage(clientMessage.Message)
+			//get the user id and assign it
+			usrI, err := c.usersRepo.GetOne(messageToSend.UserID)
+			messageToSend.Username = usrI.(model.User).Name
+			//save the message to get the id of it
+			id, err := c.messagesRepo.Create(clientMessage.Message)
+			if err == nil {
+				messageToSend.ID = id
+				messageToSend.SentAt = time.Now()
+				err = c.broadcastMessage(messageToSend)
 			}
+			if err != nil {
+				clientMessage.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
+			}
+
 		case clientRoom := <-c.joinRoom:
 			err := c.addClientToRoom(clientRoom)
 			if err == nil {
@@ -118,6 +128,7 @@ func (c *channel) Run() {
 			} else {
 				clientRoom.Client.ForwardMessage() <- c.messageProcessor.ErrorMessage(err.Error())
 			}
+
 		case clientRoom := <-c.leaveRoom:
 			err := c.removeClientFromRoom(clientRoom)
 			if err != nil {
@@ -169,7 +180,7 @@ func (c *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	client := NewClient(socket, make(chan *message.BroadcastedMessage, messageBufferSize), c.messageQueue, user.(model.User), c.joinRoom, c.leaveRoom)
+	client := NewClient(socket, make(chan *model.Message, messageBufferSize), c.messageQueue, user.(model.User), c.joinRoom, c.leaveRoom)
 	c.joinChannel <- client
 	defer func() {
 		c.leaveChannel <- client
@@ -179,7 +190,7 @@ func (c *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	client.Read()     //we keep reading messages in this thread, thus blocking operations and keeping the connection alive
 }
 
-func (c channel) broadcastMessage(bm *message.BroadcastedMessage) (err error) {
+func (c channel) broadcastMessage(bm *model.Message) (err error) {
 	var errorMessage strings.Builder
 
 	if len(bm.RoomIDs) == 1 && bm.RoomIDs[0] == -1 { //broadcast to all rooms
@@ -248,9 +259,9 @@ func (c *channel) removeClientFromRoom(clientRoom ClientRooms) (err error) {
 
 type History [][]interface{}
 
-func (c channel) getHistory(RoomIDS []int, numberOfMessages int) (history History) {
+func (c channel) getHistory(RoomIDS []int64, numberOfMessages int) (history History) {
 	for _, roomID := range RoomIDS {
-		history = append(history, c.messagesRepo.GetAllWhere("RoomID", roomID, numberOfMessages))
+		history = append(history, c.messagesRepo.GetAllWhere("RoomID", int(roomID), numberOfMessages))
 	}
 	return
 }

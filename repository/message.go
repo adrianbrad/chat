@@ -2,8 +2,10 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 
+	"github.com/adrianbrad/chat/message"
 	"github.com/adrianbrad/chat/model"
 )
 
@@ -82,11 +84,13 @@ func (r dbMessagesRepository) GetAll() (messages []interface{}) {
 //WHERE "mr"."RoomID" = 1 AND "m"."MessageID" = "mr"."MessageID"
 func (r dbMessagesRepository) GetAllWhere(cloumn string, value int, limit int) (messages []interface{}) {
 	rows, err := r.db.Query(`
-	SELECT *
-	FROM "Messages" as "m", "Messages_Rooms" as "mr" 
-	WHERE "mr"."RoomID" = 1 AND "m"."MessageID" = "mr"."MessageID"
-	LIMIT $1
-	`, limit)
+	SELECT "Messages"."MessageID", "Messages"."Content", "Messages"."UserID", "Messages"."SentAt" ,
+	(SELECT array(SELECT "RoomID" FROM "Messages_Rooms" WHERE "Messages_Rooms"."MessageID" = "Messages"."MessageID")) AS "RoomIDs",
+	(SELECT "Name" FROM "Users" WHERE "Messages"."UserID" = "Users"."UserID") as "UserName"
+	FROM "Messages", "Messages_Rooms"
+	WHERE "Messages_Rooms"."RoomID" = $1 AND "Messages"."MessageID" = "Messages_Rooms"."MessageID"
+	LIMIT $2
+	`, value, limit)
 	if err != nil {
 		log.Println("Query error: ", err)
 		return
@@ -96,11 +100,14 @@ func (r dbMessagesRepository) GetAllWhere(cloumn string, value int, limit int) (
 
 	for rows.Next() {
 		message := model.Message{}
+		// var ret pq.Int64Array
 		err = rows.Scan(
 			&message.ID,
 			&message.Content,
 			&message.UserID,
-			&message.SentAt)
+			&message.SentAt,
+			&message.RoomIDs,
+			&message.Username)
 		if err != nil {
 			log.Println("Mapping error", err)
 			return
@@ -115,30 +122,36 @@ func (r dbMessagesRepository) GetAllWhere(cloumn string, value int, limit int) (
 }
 
 func (r dbMessagesRepository) Create(messageI interface{}) (id int, err error) {
-	tx, err := r.db.Begin()
-	if err != nil {
+	//TODO
+	log.Println("to do Save message")
+	msgReceived := messageI.(*message.ReceivedMessage)
+	// tx, err := r.db.Begin()
+	// if err != nil {
+	// 	log.Println(err)
+	// 	return id, err
+	// }
+	if err := r.db.QueryRow(r.createQuery, msgReceived.Content, msgReceived.UserID).Scan(&id); err != nil {
+		// tx.Rollback()
+		log.Println(err)
 		return id, err
 	}
-	message := messageI.(model.Message)
-	if err := tx.QueryRow(r.createQuery, message.Content, message.UserID).Scan(&id); err != nil {
-		tx.Rollback()
-		return id, err
-	}
-	for _, roomID := range message.RoomIDs {
-		if _, err := tx.Exec(`		
+	fmt.Println(id)
+	for _, roomID := range msgReceived.RoomIDs {
+		if _, err := r.db.Exec(`
 		INSERT INTO "Messages_Rooms"
 			("MessageID", "RoomID")
 		VALUES ($1, $2)
 		`, id, roomID); err != nil {
-			tx.Rollback()
+			// tx.Rollback()
+			log.Println(err, id, roomID)
 			return id, err
 		}
 	}
 
-	if err = tx.Commit(); err != nil {
-		return id, err
-	}
-
+	// if err = tx.Commit(); err != nil {
+	// 	log.Println(err, id)
+	// 	return id, err
+	// }
 	return id, nil
 }
 

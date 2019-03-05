@@ -14,5 +14,7 @@ type DatabaseConfiguration struct {
 }
 
 type ServerConfiguration struct {
-	Port string
+	Port    string
+	Secret  string
+	Channel string
 }

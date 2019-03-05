@@ -7,5 +7,5 @@ type ClientJoinsRooms struct {
 
 type ClientRooms struct {
 	Client Client
-	Rooms  []int
+	Rooms  []int64
 }

@@ -345,7 +345,7 @@ ALTER TABLE ONLY public."Users" ALTER COLUMN "UserID" SET DEFAULT nextval('publi
 --
 
 COPY public."Channels" ("ChannelID", "Name", "Description") FROM stdin;
-1	mbitcasino	\N
+1	mbitcasino.com	\N
 \.
 
 
@@ -364,6 +364,17 @@ COPY public."Messages" ("MessageID", "Content", "UserID", "SentAt") FROM stdin;
 8	room 1user 1 mes 5	1	2019-03-01 13:20:45.027347
 9	room 2 user 2 mes 4	2	2019-03-01 13:20:45.027347
 10	room 2 user 2 mes 5	2	2019-03-01 13:20:45.027347
+11	32	1	2019-03-05 16:03:30.917565
+12	43	1	2019-03-05 16:25:39.157018
+13	3	1	2019-03-05 16:30:24.790761
+14	ew	1	2019-03-05 16:31:12.977245
+15	f	1	2019-03-05 16:33:47.960652
+16	ew	1	2019-03-05 16:41:42.769396
+17	234	1	2019-03-05 16:42:04.181082
+18	24	1	2019-03-05 16:42:18.286335
+19	32	2	2019-03-05 16:42:23.892945
+20	5	2	2019-03-05 16:42:26.049061
+21	bradian	2	2019-03-05 16:42:36.44415
 \.
 
 
@@ -379,6 +390,32 @@ COPY public."Messages_Rooms" ("MessageID", "RoomID") FROM stdin;
 8	1
 4	2
 5	2
+1	2
+1	3
+3	2
+2	2
+11	1
+11	2
+12	1
+12	2
+13	1
+13	2
+14	1
+14	2
+15	1
+15	2
+16	1
+16	2
+17	1
+17	2
+18	1
+18	2
+19	1
+19	2
+20	1
+20	2
+21	1
+21	2
 \.
 
 
@@ -426,14 +463,14 @@ COPY public."Rooms" ("RoomID", "Name", "Description", "ChannelID", "JoinedAt") F
 --
 
 COPY public."Users" ("UserID", "Name", "UserData", "RoleID") FROM stdin;
-1	brad	not	1
-2	added	asdf	1
-3	bbbb	aaaa	1
-6	Nm		1
 10	braa		1
 11	Jogn		1
 13	Yes		1
 14	Asdf	stuff	1
+1	usr1	not	1
+2	usr2	asdf	1
+3	usr3\n	aaaa	1
+6	usr6		1
 \.
 
 
@@ -442,8 +479,10 @@ COPY public."Users" ("UserID", "Name", "UserData", "RoleID") FROM stdin;
 --
 
 COPY public."Users_Channels" ("UserID", "ChannelID", "Joined") FROM stdin;
+1	1	2019-03-05 16:42:13.339883
+2	1	2019-03-05 16:42:22.721303
 3	1	2019-02-26 15:49:54
-1	1	2019-03-04 16:18:05.350016
+6	1	2019-03-05 15:11:25.463444
 \.
 
 
@@ -466,7 +505,7 @@ SELECT pg_catalog.setval('public."Channels_ChannelID_seq"', 1, true);
 -- Name: Messages_MessageID_seq; Type: SEQUENCE SET; Schema: public; Owner: admin
 --
 
-SELECT pg_catalog.setval('public."Messages_MessageID_seq"', 2, true);
+SELECT pg_catalog.setval('public."Messages_MessageID_seq"', 21, true);
 
 
 --

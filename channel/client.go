@@ -4,7 +4,6 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/adrianbrad/chat/message"
 	"github.com/adrianbrad/chat/model"
 	"github.com/gorilla/websocket"
 )
@@ -30,13 +29,13 @@ type client struct {
 	//leave
 	leave chan ClientRooms
 	//userData is used for storing information about the user
-	user model.User
+	user *model.User
 }
 
 func NewClient(
 	socket *websocket.Conn,
 	forwardMessage chan *model.Message,
-	incomingMessage chan ClientMessage, user model.User,
+	incomingMessage chan ClientMessage, user *model.User,
 	join chan ClientJoinsRooms, leave chan ClientRooms) Client {
 	return &client{
 		socket:              socket,
@@ -53,7 +52,7 @@ func (client *client) Read() {
 	defer client.socket.Close()
 
 	for {
-		var receivedMessage *message.ReceivedMessage
+		var receivedMessage *model.Message
 		err := client.socket.ReadJSON(&receivedMessage)
 		//if reading from socket fails the for loop is broken and the socket is closed
 		if err != nil {
@@ -63,7 +62,7 @@ func (client *client) Read() {
 		switch receivedMessage.Action {
 		case "join":
 			historyLimit := 30
-			if givenHistoryLimit, err := strconv.Atoi(receivedMessage.Content); err == nil {
+			if givenHistoryLimit, err := strconv.Atoi(receivedMessage.Content.(string)); err == nil {
 				historyLimit = givenHistoryLimit
 			}
 
@@ -92,12 +91,12 @@ func (client *client) Write() {
 	}
 }
 
-func (client client) processMessage(rm *message.ReceivedMessage) *message.BroadcastedMessage {
+func (client client) processMessage(rm *model.Message) *model.Message {
 	//TODO return a message to be broadcasted over the specified rooms
 	return nil
 }
 
-func (client client) sendHistory(rm *message.ReceivedMessage) *message.BroadcastedMessage {
+func (client client) sendHistory(rm *model.Message) *model.Message {
 	//TODO get history from the channel for the room he asked to join based on the amount of messages given
 	return nil
 }

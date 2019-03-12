@@ -15,15 +15,15 @@ type dbPermissionsRepository struct {
 	checkIfExistsQuery string
 }
 
-func NewDbPermissionsRepository(database *sql.DB) Repository {
-	return &dbPermissionsRepository{
-		db:                 database,
-		getOneQuery:        getOneQuery("Permission", "PermissionID", "Name", "Description"),
-		getAllQuery:        getAllQuery("Permission", "PermissionID", "Name", "Description"),
-		createQuery:        createOneQuery("Permission", "Name", "Description"),
-		checkIfExistsQuery: checkIfExistsQuery("Permission"),
-	}
-}
+// func NewDbPermissionsRepository(database *sql.DB) Repository {
+// 	return &dbPermissionsRepository{
+// 		db:                 database,
+// 		getOneQuery:        getOneQuery("Permission", "PermissionID", "Name", "Description"),
+// 		getAllQuery:        getAllQuery("Permission", "PermissionID", "Name", "Description"),
+// 		createQuery:        createOneQuery("Permission", "Name", "Description"),
+// 		checkIfExistsQuery: checkIfExistsQuery("Permission"),
+// 	}
+// }
 
 func (r dbPermissionsRepository) GetOne(id int) (interface{}, error) {
 	var permission model.Permission

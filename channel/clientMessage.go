@@ -1,8 +1,8 @@
 package channel
 
-import "github.com/adrianbrad/chat/message"
+import "github.com/adrianbrad/chat/model"
 
 type ClientMessage struct {
 	Client  Client
-	Message *message.ReceivedMessage
+	Message *model.Message
 }

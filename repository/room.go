@@ -15,15 +15,15 @@ type dbRoomsRepository struct {
 	checkIfExistsQuery string
 }
 
-func NewDbRoomsRepository(database *sql.DB) Repository {
-	return &dbRoomsRepository{
-		db:                 database,
-		getOneQuery:        getOneQuery("Room", "RoomID", "Name", "Description", "ChannelID"),
-		getAllQuery:        getAllQuery("Room", "RoomID", "Name", "Description", "ChannelID"),
-		createQuery:        createOneQuery("Room", "Name", "Description"),
-		checkIfExistsQuery: checkIfExistsQuery("Room"),
-	}
-}
+// func NewDbRoomsRepository(database *sql.DB) Repository {
+// 	return &dbRoomsRepository{
+// 		db:                 database,
+// 		getOneQuery:        getOneQuery("Room", "RoomID", "Name", "Description", "ChannelID"),
+// 		getAllQuery:        getAllQuery("Room", "RoomID", "Name", "Description", "ChannelID"),
+// 		createQuery:        createOneQuery("Room", "Name", "Description"),
+// 		checkIfExistsQuery: checkIfExistsQuery("Room"),
+// 	}
+// }
 
 func (r dbRoomsRepository) GetOne(id int) (interface{}, error) {
 	var room model.Room

@@ -47,8 +47,8 @@ type channel struct {
 
 	//repo persists the changes made to the channel
 	usersChannelsRepo repository.UsersChannelsRepository
-	usersRepo         repository.Repository
-	messagesRepo      repository.Repository
+	usersRepo         repository.UserRepository
+	messagesRepo      repository.MessageRepository
 
 	//messageProcessor is used for handling incoming messages transforming them to broadcasted messages or doing the actions requested by the message
 	messageProcessor messageProcessor.MessageProcessor
@@ -60,10 +60,11 @@ type channel struct {
 func New(
 	usersChannelsRepo repository.UsersChannelsRepository,
 	channelID int,
-	usersRepo repository.Repository,
+	usersRepo repository.UserRepository,
 	messageProcessor messageProcessor.MessageProcessor,
 	roomIDs []int64,
-	messagesRepo repository.Repository) Channel {
+	messagesRepo repository.MessageRepository) Channel {
+
 	c := &channel{
 		messageQueue: make(chan ClientMessage),
 		joinChannel:  make(chan Client),
@@ -105,10 +106,12 @@ func (c *channel) Run() {
 
 		case clientMessage := <-c.messageQueue:
 			//transform into model
-			messageToSend := model.NewMessage(clientMessage.Message)
-			//get the user id and assign it
-			usrI, err := c.usersRepo.GetOne(messageToSend.UserID)
-			messageToSend.Username = usrI.(model.User).Name
+			messageToSend := clientMessage.Message
+			//get the user name and assign it
+			if user, err := c.usersRepo.GetOne(messageToSend.UserID); err != nil {
+				messageToSend.Username = user.Name
+				//TODO handle error
+			}
 			//save the message to get the id of it
 			id, err := c.messagesRepo.Create(clientMessage.Message)
 			if err == nil {
@@ -180,7 +183,7 @@ func (c *channel) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	client := NewClient(socket, make(chan *model.Message, messageBufferSize), c.messageQueue, user.(model.User), c.joinRoom, c.leaveRoom)
+	client := NewClient(socket, make(chan *model.Message, messageBufferSize), c.messageQueue, user, c.joinRoom, c.leaveRoom)
 	c.joinChannel <- client
 	defer func() {
 		c.leaveChannel <- client
@@ -257,11 +260,11 @@ func (c *channel) removeClientFromRoom(clientRoom ClientRooms) (err error) {
 	return
 }
 
-type History [][]interface{}
+type History [][]*model.Message
 
 func (c channel) getHistory(RoomIDS []int64, numberOfMessages int) (history History) {
 	for _, roomID := range RoomIDS {
-		history = append(history, c.messagesRepo.GetAllWhere("RoomID", int(roomID), numberOfMessages))
+		history = append(history, c.messagesRepo.GetHistory(int(roomID), numberOfMessages))
 	}
 	return
 }

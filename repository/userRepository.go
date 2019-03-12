@@ -7,6 +7,11 @@ import (
 	"github.com/adrianbrad/chat/model"
 )
 
+type UserRepository interface {
+	GetOne(int) (*model.User, error)
+	CheckIfExists(int) bool
+}
+
 type dbUsersRepository struct {
 	db                 *sql.DB
 	getOneQuery        string
@@ -15,7 +20,7 @@ type dbUsersRepository struct {
 	checkIfExistsQuery string
 }
 
-func NewDbUsersRepository(database *sql.DB) Repository {
+func NewDbUsersRepository(database *sql.DB) UserRepository {
 	return &dbUsersRepository{
 		db:                 database,
 		getOneQuery:        getOneQuery("User", "UserID", "Name", "RoleID", "UserData"),
@@ -25,8 +30,8 @@ func NewDbUsersRepository(database *sql.DB) Repository {
 	}
 }
 
-func (r dbUsersRepository) GetOne(id int) (interface{}, error) {
-	var user model.User
+func (r dbUsersRepository) GetOne(id int) (*model.User, error) {
+	user := &model.User{}
 	err := r.db.QueryRow(r.getOneQuery, id).Scan(
 		&user.ID,
 		&user.Name,

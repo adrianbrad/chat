@@ -5,9 +5,14 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/adrianbrad/chat/message"
 	"github.com/adrianbrad/chat/model"
 )
+
+type MessageRepository interface {
+	GetOne(int) (*model.Message, error)
+	Create(*model.Message) (int, error)
+	GetHistory(int, int) []*model.Message
+}
 
 type dbMessagesRepository struct {
 	db                     *sql.DB
@@ -18,10 +23,14 @@ type dbMessagesRepository struct {
 	getAllWhereRoomIDQuery string
 }
 
-func NewDbMessagesRepository(database *sql.DB) Repository {
+func NewDbMessagesRepository(database *sql.DB) MessageRepository {
 	return &dbMessagesRepository{
-		db:          database,
-		getOneQuery: getOneQuery("Message", "Content", "RoomID", "UserID"),
+		db: database,
+		getOneQuery: `
+		SELECT "Messages"."MessageID", "Messages"."Content", "Messages"."SentAt", "Messages"."UserID",
+			(SELECT array(SELECT "RoomID" FROM "Messages_Rooms" WHERE "Messages_Rooms"."MessageID" = "Messages"."MessageID")) AS "RoomIDs" 
+		FROM "Messages"
+		WHERE "Messages"."MessageID" = $1`,
 		getAllQuery: `
 		SELECT "Messages"."MessageID", "Messages"."Content", "Messages"."SentAt", "Messages"."UserID",
 			(SELECT array(SELECT "RoomID" FROM "Messages_Rooms" WHERE "Messages_Rooms"."MessageID" = "Messages"."MessageID")) AS "RoomIDs" 
@@ -32,16 +41,18 @@ func NewDbMessagesRepository(database *sql.DB) Repository {
 	}
 }
 
-func (r dbMessagesRepository) GetOne(id int) (interface{}, error) {
-	var message model.Message
+func (r dbMessagesRepository) GetOne(id int) (*model.Message, error) {
+	message := &model.Message{}
+
 	err := r.db.QueryRow(r.getOneQuery, id).Scan(
 		&message.ID,
 		&message.Content,
-		&message.RoomIDs,
-		&message.UserID)
+		&message.SentAt,
+		&message.UserID,
+		&message.RoomIDs)
 	if err != nil {
 		log.Println("Error while fetching message with id", id)
-		return message, err
+		return nil, err
 	}
 	return message, nil
 }
@@ -82,7 +93,7 @@ func (r dbMessagesRepository) GetAll() (messages []interface{}) {
 //(SELECT array(SELECT "RoomID" FROM "Messages_Rooms" WHERE "mr"."MessageID" = "m"."MessageID" AND "mr"."RoomID" = 2)) AS "RoomIDs"
 //FROM "Messages" as "m", "Messages_Rooms" as "mr"
 //WHERE "mr"."RoomID" = 1 AND "m"."MessageID" = "mr"."MessageID"
-func (r dbMessagesRepository) GetAllWhere(cloumn string, value int, limit int) (messages []interface{}) {
+func (r dbMessagesRepository) GetHistory(roomID int, limit int) (messages []*model.Message) {
 	rows, err := r.db.Query(`
 	SELECT "Messages"."MessageID", "Messages"."Content", "Messages"."UserID", "Messages"."SentAt" ,
 	(SELECT array(SELECT "RoomID" FROM "Messages_Rooms" WHERE "Messages_Rooms"."MessageID" = "Messages"."MessageID")) AS "RoomIDs",
@@ -90,7 +101,7 @@ func (r dbMessagesRepository) GetAllWhere(cloumn string, value int, limit int) (
 	FROM "Messages", "Messages_Rooms"
 	WHERE "Messages_Rooms"."RoomID" = $1 AND "Messages"."MessageID" = "Messages_Rooms"."MessageID"
 	LIMIT $2
-	`, value, limit)
+	`, roomID, limit)
 	if err != nil {
 		log.Println("Query error: ", err)
 		return
@@ -99,7 +110,7 @@ func (r dbMessagesRepository) GetAllWhere(cloumn string, value int, limit int) (
 	defer rows.Close()
 
 	for rows.Next() {
-		message := model.Message{}
+		message := &model.Message{}
 		// var ret pq.Int64Array
 		err = rows.Scan(
 			&message.ID,
@@ -121,22 +132,21 @@ func (r dbMessagesRepository) GetAllWhere(cloumn string, value int, limit int) (
 	return messages
 }
 
-func (r dbMessagesRepository) Create(messageI interface{}) (id int, err error) {
+func (r dbMessagesRepository) Create(message *model.Message) (id int, err error) {
 	//TODO
 	log.Println("to do Save message")
-	msgReceived := messageI.(*message.ReceivedMessage)
 	// tx, err := r.db.Begin()
 	// if err != nil {
 	// 	log.Println(err)
 	// 	return id, err
 	// }
-	if err := r.db.QueryRow(r.createQuery, msgReceived.Content, msgReceived.UserID).Scan(&id); err != nil {
+	if err := r.db.QueryRow(r.createQuery, message.Content, message.UserID).Scan(&id); err != nil {
 		// tx.Rollback()
 		log.Println(err)
 		return id, err
 	}
 	fmt.Println(id)
-	for _, roomID := range msgReceived.RoomIDs {
+	for _, roomID := range message.RoomIDs {
 		if _, err := r.db.Exec(`
 		INSERT INTO "Messages_Rooms"
 			("MessageID", "RoomID")

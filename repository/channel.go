@@ -7,6 +7,10 @@ import (
 	"github.com/adrianbrad/chat/model"
 )
 
+type ChannelRepository interface {
+	GetOne(int) (*model.Channel, error)
+}
+
 type dbChannelsRepository struct {
 	db                 *sql.DB
 	getOneQuery        string
@@ -15,7 +19,7 @@ type dbChannelsRepository struct {
 	checkIfExistsQuery string
 }
 
-func NewDbChannelsRepository(database *sql.DB) Repository {
+func NewDbChannelsRepository(database *sql.DB) ChannelRepository {
 	return &dbChannelsRepository{
 		db:                 database,
 		getOneQuery:        getOneQuery("Channel", "ChannelID", "Name", "Description"),
@@ -25,8 +29,8 @@ func NewDbChannelsRepository(database *sql.DB) Repository {
 	}
 }
 
-func (r dbChannelsRepository) GetOne(id int) (interface{}, error) {
-	var channel model.Channel
+func (r dbChannelsRepository) GetOne(id int) (*model.Channel, error) {
+	channel := &model.Channel{}
 	err := r.db.QueryRow(r.getOneQuery, id).Scan(
 		&channel.ID,
 		&channel.Name,

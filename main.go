@@ -27,9 +27,9 @@ import (
 )
 
 var db *sql.DB
-var userRepository repository.Repository
+var userRepository repository.UserRepository
 var usersChannelsRepository repository.UsersChannelsRepository
-var messagesRepository repository.Repository
+var messagesRepository repository.MessageRepository
 var secret string
 var h hash.Hash
 var channelIdentifier string
@@ -73,6 +73,7 @@ func main() {
 	userRepository = repository.NewDbUsersRepository(db)
 	messagesRepository = repository.NewDbMessagesRepository(db)
 	usersChannelsRepository = repository.NewDbUsersChannelsRepository(db)
+
 	channel := channel.New(usersChannelsRepository, 1, userRepository, messageProcessor.New(), []int64{1, 2}, messagesRepository)
 	go channel.Run() //get the channel going in another thread
 	//the chatting operation occur in the background

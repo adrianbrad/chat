@@ -15,15 +15,15 @@ type dbRolesRepository struct {
 	checkIfExistsQuery string
 }
 
-func NewDbRolesRepository(database *sql.DB) Repository {
-	return &dbRolesRepository{
-		db:                 database,
-		getOneQuery:        getOneQuery("Role", "RoleID", "Name", "Description"),
-		getAllQuery:        getAllQuery("Role", "RoleID", "Name", "Description"),
-		createQuery:        createOneQuery("Role", "Name", "Description"),
-		checkIfExistsQuery: checkIfExistsQuery("Role"),
-	}
-}
+// func NewDbRolesRepository(database *sql.DB) Repository {
+// 	return &dbRolesRepository{
+// 		db:                 database,
+// 		getOneQuery:        getOneQuery("Role", "RoleID", "Name", "Description"),
+// 		getAllQuery:        getAllQuery("Role", "RoleID", "Name", "Description"),
+// 		createQuery:        createOneQuery("Role", "Name", "Description"),
+// 		checkIfExistsQuery: checkIfExistsQuery("Role"),
+// 	}
+// }
 
 func (r dbRolesRepository) GetOne(id int) (interface{}, error) {
 	var role model.Role
